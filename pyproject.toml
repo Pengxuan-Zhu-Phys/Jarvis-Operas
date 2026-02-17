@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Jarvis-Operas"
+version = "0.1.0"
+description = "Operator registry and async-friendly execution layer for Jarvis"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "loguru>=0.7",
+  "numpy>=1.24",
+  "scipy>=1.10",
+  "pandas>=1.5",
+  "sympy>=1.11"
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["jarvis_operas*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

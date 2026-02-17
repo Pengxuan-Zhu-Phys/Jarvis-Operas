@@ -1,0 +1,6 @@
+loguru>=0.7
+numpy>=1.24
+scipy>=1.10
+pandas>=1.5
+sympy>=1.11
+pytest>=7.0
