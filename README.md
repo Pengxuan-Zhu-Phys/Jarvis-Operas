@@ -13,6 +13,31 @@ Jarvis-Operas is a standalone operator layer for registering, discovering, loadi
 pip install .
 ```
 
+Or for development (includes `pytest` and installs terminal command):
+
+```bash
+pip install -e ".[dev]"
+```
+
+## Terminal command (`jopera`)
+
+After install, you can use:
+
+```bash
+jopera list --namespace core
+jopera info core:chi2_cov --json
+jopera call core:add --kwargs '{"a": 1, "b": 2}'
+jopera acall core:chi2_cov --arg residual=[1.0,-0.5] --arg cov=[[2.0,0.1],[0.1,1.0]]
+jopera list --namespace core --log-mode info
+jopera call core:add --kwargs '{"a": 1, "b": 2}' --log-mode debug
+```
+
+Load user operators directly in CLI:
+
+```bash
+jopera call user:my_op --user-ops /absolute/path/to/my_ops.py --arg x=10
+```
+
 ## Core API
 
 ```python
@@ -52,12 +77,16 @@ Behavior:
 
 - If no logger is provided, Jarvis-Operas uses `loguru.logger` bound with `module="Jarvis-Operas"`
 - If logger is provided, Jarvis-Operas reuses it (no duplicate handler creation)
+- Console format follows Jarvis-HEP style (`module -> time - [level] >>> message`)
+- Default mode is `warning` (only warning/error/critical are shown)
+- Optional modes: `info`, `debug`
 
 Utility:
 
 ```python
-from jarvis_operas import get_logger
+from jarvis_operas import get_logger, set_log_mode
 
+set_log_mode("info")   # or "debug", default is "warning"
 logger = get_logger()
 ```
 

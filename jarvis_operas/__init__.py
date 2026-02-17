@@ -8,7 +8,7 @@ from .errors import (
     OperatorNotFound,
 )
 from .loading import discover_entrypoints, load_user_ops
-from .logging import get_logger
+from .logging import get_log_mode, get_logger, set_log_mode
 from .registry import OperatorRegistry
 
 registry = get_global_registry()
@@ -20,6 +20,8 @@ __all__ = [
     "OperatorLoadError",
     "OperatorCallError",
     "get_logger",
+    "set_log_mode",
+    "get_log_mode",
     "oper",
     "registry",
     "get_global_registry",

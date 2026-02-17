@@ -19,6 +19,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
 
+[project.scripts]
+jopera = "jarvis_operas.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["jarvis_operas*"]
