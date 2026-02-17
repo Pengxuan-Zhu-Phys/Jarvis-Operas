@@ -65,11 +65,23 @@ def _is_async_callable(fn: Callable[..., Any]) -> bool:
 class OperatorRegistry:
     """Registry for named operators, with sync and asyncio-friendly execution."""
 
-    def __init__(self, *, logger: Any | None = None, executor: Executor | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        logger: Any | None = None,
+        executor: Executor | None = None,
+        log_mode: str | None = None,
+    ) -> None:
         self._operators: dict[str, OperatorRecord] = {}
         self._logger = logger
         self._executor = executor
+        self._log_mode = log_mode
         self._lock = RLock()
+
+    def set_log_mode(self, mode: str | None) -> None:
+        """Set preferred log mode for this registry when using default logger."""
+
+        self._log_mode = mode
 
     def register(
         self,
@@ -119,6 +131,7 @@ class OperatorRegistry:
 
         local_logger = get_logger(
             logger or self._logger,
+            mode=self._log_mode,
             operator=full_name,
             action="register",
         )
@@ -131,6 +144,7 @@ class OperatorRegistry:
         record = self._get_record(full_name)
         call_logger = get_logger(
             logger or self._logger,
+            mode=self._log_mode,
             operator=full_name,
             action="call",
         )
@@ -158,6 +172,7 @@ class OperatorRegistry:
         record = self._get_record(full_name)
         call_logger = get_logger(
             logger or self._logger,
+            mode=self._log_mode,
             operator=full_name,
             action="acall",
         )
