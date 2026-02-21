@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import re
 import sys
 import time
 from importlib.metadata import entry_points
@@ -18,13 +19,14 @@ def load_user_ops(
     path: str,
     registry: OperatorRegistry,
     *,
-    namespace: str = "user",
+    namespace: str | None = None,
     logger: Any | None = None,
 ) -> list[str]:
     """Load user operators from a Python file via decorator or __JARVIS_OPERAS__."""
 
     local_logger = get_logger(logger, action="load_user_ops")
     module_path = Path(path).expanduser().resolve()
+    target_namespace = namespace or _namespace_from_path(module_path)
 
     if not module_path.exists() or not module_path.is_file():
         raise OperatorLoadError(
@@ -43,7 +45,7 @@ def load_user_ops(
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
         try:
-            with _use_registry(registry):
+            with _use_registry(registry, default_namespace=target_namespace):
                 spec.loader.exec_module(module)
         except Exception:
             sys.modules.pop(module_name, None)
@@ -60,10 +62,10 @@ def load_user_ops(
                 registry.register(
                     name=op_name,
                     fn=fn,
-                    namespace=namespace,
+                    namespace=target_namespace,
                     metadata={"source": "__JARVIS_OPERAS__", "path": str(module_path)},
                 )
-                loaded.append(f"{namespace}:{op_name}")
+                loaded.append(f"{target_namespace}:{op_name}")
 
         if not loaded:
             raise RuntimeError(
@@ -147,3 +149,11 @@ def _iter_group_entrypoints(group: str):
     if hasattr(eps, "select"):
         return eps.select(group=group)
     return eps.get(group, [])
+
+
+def _namespace_from_path(module_path: Path) -> str:
+    stem = module_path.stem.strip()
+    normalized = re.sub(r"[^0-9A-Za-z_]+", "_", stem).strip("_")
+    if not normalized:
+        return "user_ops"
+    return normalized
