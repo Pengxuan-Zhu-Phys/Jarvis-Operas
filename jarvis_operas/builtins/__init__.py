@@ -1,18 +1,22 @@
 from __future__ import annotations
 
-from .core import add, chi2_cov, identity
+from .helper import eggbox, eggbox2d
+from .math import add, identity
+from .stat import chi2_cov
 
 
 BUILTIN_OPERATORS = (
-    ("identity", identity, {"category": "utility"}),
-    ("add", add, {"category": "math"}),
-    ("chi2_cov", chi2_cov, {"category": "statistics"}),
+    ("math", "add", add, {"category": "math"}),
+    ("stat", "chi2_cov", chi2_cov, {"category": "statistics"}),
+    ("helper", "eggbox", eggbox, {"category": "hep_scanner_benchmark"}),
+    ("helper", "eggbox2d", eggbox2d, {"category": "hep_scanner_benchmark"}),
+    ("math", "identity", identity, {"category": "math"}),
 )
 
 
 def register_builtins(registry) -> list[str]:
     registered = []
-    for name, fn, metadata in BUILTIN_OPERATORS:
-        registry.register(name=name, fn=fn, namespace="core", metadata=metadata)
-        registered.append(f"core:{name}")
+    for namespace, name, fn, metadata in BUILTIN_OPERATORS:
+        registry.register(name=name, fn=fn, namespace=namespace, metadata=metadata)
+        registered.append(f"{namespace}:{name}")
     return registered

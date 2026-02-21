@@ -15,7 +15,7 @@ def test_load_user_ops_with_decorator(tmp_path) -> None:
             """
             from jarvis_operas import oper
 
-            @oper("double", namespace="user", tag="demo")
+            @oper("double", tag="demo")
             def double(x):
                 return x * 2
             """
@@ -26,9 +26,9 @@ def test_load_user_ops_with_decorator(tmp_path) -> None:
     registry = OperatorRegistry()
     loaded = load_user_ops(str(op_file), registry)
 
-    assert loaded == ["user:double"]
-    assert registry.call("user:double", x=6) == 12
-    assert registry.info("user:double")["metadata"]["tag"] == "demo"
+    assert loaded == ["decor_ops:double"]
+    assert registry.call("decor_ops:double", x=6) == 12
+    assert registry.info("decor_ops:double")["metadata"]["tag"] == "demo"
 
 
 def test_load_user_ops_with_export_whitelist(tmp_path) -> None:
@@ -50,8 +50,8 @@ def test_load_user_ops_with_export_whitelist(tmp_path) -> None:
     registry = OperatorRegistry()
     loaded = load_user_ops(str(op_file), registry)
 
-    assert loaded == ["user:triple"]
-    assert registry.call("user:triple", x=5) == 15
+    assert loaded == ["whitelist_ops:triple"]
+    assert registry.call("whitelist_ops:triple", x=5) == 15
 
 
 def test_load_user_ops_wraps_import_errors(tmp_path) -> None:
