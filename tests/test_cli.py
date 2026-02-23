@@ -6,6 +6,9 @@ import re
 import subprocess
 import sys
 import textwrap
+from pathlib import Path
+
+from jarvis_operas import cli as cli_mod
 
 
 def _run_cli(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -116,6 +119,17 @@ def test_cli_not_found_shows_suggestion() -> None:
     assert "helper:eggbox" in result.stderr
 
 
+def test_cli_debug_flag_supported_before_and_after_command(monkeypatch) -> None:
+    calls: list[str] = []
+
+    monkeypatch.setattr(cli_mod, "configure_cli_logger", lambda mode: calls.append(mode))
+    monkeypatch.setattr(cli_mod, "_cmd_help", lambda args: 0)
+
+    assert cli_mod.main(["-d", "help", "examples"]) == 0
+    assert cli_mod.main(["help", "examples", "-d"]) == 0
+    assert calls == ["debug", "debug"]
+
+
 def test_cli_info_shows_operator_id() -> None:
     result = _run_cli("info", "math:add", "--json")
 
@@ -124,6 +138,28 @@ def test_cli_info_shows_operator_id() -> None:
     assert "id" in payload
     assert re.match(r"^[a-z][0-9]{3,5}$", payload["id"])
     assert payload["supports_async"] is True
+
+
+def test_print_info_human_hides_metadata_and_shows_note(capsys) -> None:
+    info = {
+        "name": "dmdd:LZSI2024",
+        "id": "d12345",
+        "namespace": "dmdd",
+        "signature": "(x)",
+        "supports_async": True,
+        "docstring": "LZ 2024 SI upper limit.",
+        "metadata": {
+            "category": "interpolation",
+            "note": "From arXiv:2410.17036",
+            "source": "/tmp/LZSI_2024.json",
+        },
+    }
+    cli_mod._print_info_human(info)
+    out = capsys.readouterr().out
+
+    assert "Summary:\tLZ 2024 SI upper limit." in out
+    assert "Note:\tFrom arXiv:2410.17036" in out
+    assert "Metadata:\t" not in out
 
 
 def test_cli_load_persists_for_new_process(tmp_path) -> None:
@@ -291,3 +327,153 @@ def test_cli_update_namespace_from_script_and_delete_namespace(tmp_path) -> None
     call_deleted = _run_cli("call", "ns_manage_ops:square", "--arg", "x=3", env=env)
     assert call_deleted.returncode == 1
     assert "not found" in call_deleted.stderr
+
+
+def test_cli_init_curve_cache(tmp_path) -> None:
+    curve_dir = tmp_path / "curves"
+    curve_dir.mkdir()
+    (curve_dir / "line.json").write_text(
+        json.dumps({"x": [0.0, 1.0, 2.0], "y": [0.0, 1.0, 2.0]}),
+        encoding="utf-8",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "curves": [
+                    {
+                        "curve_id": "line_curve",
+                        "source": "curves/line.json",
+                        "kind": "linear",
+                        "hot": True,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    cache_root = tmp_path / "curve-cache"
+
+    result = _run_cli(
+        "init",
+        "--manifest",
+        str(manifest_path),
+        "--cache-root",
+        str(cache_root),
+        "--json",
+    )
+    assert result.returncode == 0, result.stderr
+
+    payload = json.loads(result.stdout)
+    assert payload["total"] == 1
+    assert payload["compiled"] == ["line_curve"]
+    assert Path(payload["index_path"]).exists()
+
+
+def test_cli_init_curve_cache_without_manifest_uses_packaged_library(tmp_path) -> None:
+    cache_root = tmp_path / "curve-cache"
+    result = _run_cli(
+        "init",
+        "--cache-root",
+        str(cache_root),
+        "--json",
+    )
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["total"] >= 0
+    assert Path(payload["index_path"]).exists()
+
+
+def test_cli_init_then_list_shows_interp_namespace(tmp_path) -> None:
+    curve_dir = tmp_path / "curves"
+    curve_dir.mkdir()
+    (curve_dir / "lzsi.json").write_text(
+        json.dumps({"x": [1.0, 2.0, 3.0, 4.0], "y": [1.0, 2.0, 3.0, 4.0]}),
+        encoding="utf-8",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "curves": [
+                    {
+                        "curve_id": "LZSI2024",
+                        "source": "curves/lzsi.json",
+                        "kind": "cubic",
+                        "logX": True,
+                        "logY": True,
+                        "hot": True,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    index_path = tmp_path / "cache" / "index.json"
+
+    init_result = _run_cli(
+        "init",
+        "--manifest",
+        str(manifest_path),
+        "--index-path",
+        str(index_path),
+        "--json",
+    )
+    assert init_result.returncode == 0, init_result.stderr
+
+    env = {
+        "JARVIS_OPERAS_CURVE_INDEX": str(index_path),
+        "JARVIS_OPERAS_PERSIST_FILE": str(tmp_path / "persist_store.json"),
+    }
+    list_result = _run_cli("list", "--namespace", "interp", "--json", env=env)
+    assert list_result.returncode == 0, list_result.stderr
+    payload = json.loads(list_result.stdout)
+    assert any(item["name"] == "interp:LZSI2024" for item in payload)
+
+
+def test_cli_init_then_list_uses_group_namespace(tmp_path) -> None:
+    curve_dir = tmp_path / "curves"
+    curve_dir.mkdir()
+    (curve_dir / "lzsi.json").write_text(
+        json.dumps({"x": [1.0, 2.0, 3.0, 4.0], "y": [1.0, 2.0, 3.0, 4.0]}),
+        encoding="utf-8",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "curves": [
+                    {
+                        "curve_id": "LZSI2024",
+                        "source": "curves/lzsi.json",
+                        "kind": "cubic",
+                        "logX": True,
+                        "logY": True,
+                        "hot": True,
+                        "metadata": {"group": "dmdd"},
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    index_path = tmp_path / "cache" / "index.json"
+
+    init_result = _run_cli(
+        "init",
+        "--manifest",
+        str(manifest_path),
+        "--index-path",
+        str(index_path),
+        "--json",
+    )
+    assert init_result.returncode == 0, init_result.stderr
+
+    env = {
+        "JARVIS_OPERAS_CURVE_INDEX": str(index_path),
+        "JARVIS_OPERAS_PERSIST_FILE": str(tmp_path / "persist_store.json"),
+    }
+    list_result = _run_cli("list", "--namespace", "dmdd", "--json", env=env)
+    assert list_result.returncode == 0, list_result.stderr
+    payload = json.loads(list_result.stdout)
+    assert any(item["name"] == "dmdd:LZSI2024" for item in payload)

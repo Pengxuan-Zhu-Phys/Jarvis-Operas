@@ -6,12 +6,14 @@ import difflib
 import json
 import sys
 import textwrap
+from importlib import resources
 from importlib.metadata import PackageNotFoundError, version as dist_version
 from typing import Any
 
 from . import get_global_registry, load_user_ops
+from .curves import init_curve_cache
 from .errors import OperatorNotFound
-from .logging import set_log_mode
+from .logging import configure_cli_logger
 from .persistence import (
     apply_persisted_overrides,
     clear_persisted_function_overrides,
@@ -52,9 +54,11 @@ def _root_card() -> str:
         Jarvis-Operas CLI
 
         Start here:
+          jopera init
           jopera list
           jopera info helper:eggbox
           jopera call math:add --kwargs '{"a":1,"b":2}'
+          jopera init --manifest ./manifest.json
           jopera load /path/to/my_ops.py
 
         Namespaces:
@@ -71,6 +75,8 @@ def _examples_card() -> str:
     return textwrap.dedent(
         """
         Quick examples:
+          jopera init
+          jopera init --manifest ./manifest.json
           jopera list
           jopera list --namespace helper
           jopera info stat:chi2_cov
@@ -89,6 +95,7 @@ def _advanced_card() -> str:
     return textwrap.dedent(
         """
         Advanced options:
+          -d, --debug         Enable debug logging (same as --log-mode debug)
           --user-ops PATH     Load operators from Python file (repeatable)
           --session-only      (load command) do not persist this source path
           --session-only      (delete/update commands) do not persist override rules
@@ -96,6 +103,7 @@ def _advanced_card() -> str:
           --kwargs JSON       Provide call kwargs as JSON object
           --log-mode MODE     warning|info|debug
           --json              Machine-readable output for supported commands
+          init --force        Rebuild all curve cache pickle artifacts
 
         Example:
           jopera call my_ops:my_func --user-ops ./my_ops.py --arg x=1 --arg y=2 --log-mode debug
@@ -208,6 +216,7 @@ def _suggest_next_info_command(full_name: str, namespace: str) -> str:
 def _print_info_human(info: dict[str, Any]) -> None:
     metadata = info.get("metadata", {})
     supports_async = bool(info.get("supports_async", info.get("is_async")))
+    note = metadata.get("note") if isinstance(metadata, dict) else None
     lines = [
         f"Name:\t{info.get('name', '')}",
         f"ID:\t{info.get('id', '')}",
@@ -221,8 +230,8 @@ def _print_info_human(info: dict[str, Any]) -> None:
     doc = info.get("docstring", "")
     if doc:
         lines.append(f"Summary:\t{doc}")
-    if metadata:
-        lines.append(f"Metadata:\t{json.dumps(metadata, ensure_ascii=False)}")
+    if isinstance(note, str) and note.strip():
+        lines.append(f"Note:\t{note.strip()}")
     lines.append("")
     lines.append("Try next:")
     lines.append(
@@ -401,6 +410,40 @@ def _cmd_help(args: argparse.Namespace) -> int:
     return 1
 
 
+def _cmd_init(args: argparse.Namespace) -> int:
+    if args.manifest:
+        summary = init_curve_cache(
+            args.manifest,
+            source_root=args.source_root,
+            cache_root=args.cache_root,
+            index_path=args.index_path,
+            force=bool(args.force),
+        )
+    else:
+        resource = resources.files("jarvis_operas").joinpath(
+            "manifests",
+            "interpolations.manifest.json",
+        )
+        with resources.as_file(resource) as default_manifest_path:
+            summary = init_curve_cache(
+                str(default_manifest_path),
+                source_root=args.source_root,
+                cache_root=args.cache_root,
+                index_path=args.index_path,
+                force=bool(args.force),
+            )
+    if args.json:
+        _print_value(summary, as_json=True)
+        return 0
+
+    print(f"Manifest: {summary['manifest_path']}")
+    print(f"Index:    {summary['index_path']}")
+    print(f"Total:    {summary['total']}")
+    print(f"Compiled: {len(summary['compiled'])}")
+    print(f"Cached:   {len(summary['cached'])}")
+    return 0
+
+
 def _cmd_delete_func(args: argparse.Namespace) -> int:
     registry = get_global_registry()
     resolved_full_name = registry.resolve_name(args.target)
@@ -494,6 +537,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show advanced options and exit.",
     )
+    parser.add_argument(
+        "-d",
+        "--debug",
+        action="store_true",
+        help="Enable debug logging (equivalent to --log-mode debug).",
+    )
     subparsers = parser.add_subparsers(
         dest="command",
         required=False,
@@ -542,6 +591,43 @@ def build_parser() -> argparse.ArgumentParser:
         help="Load only for this process. Skip persistent registration.",
     )
     parser_load.set_defaults(func=_cmd_load)
+
+    parser_init = subparsers.add_parser(
+        "init",
+        help="Compile curve manifest into local runtime cache",
+    )
+    _add_log_mode_arg(parser_init)
+    parser_init.add_argument(
+        "--manifest",
+        default=None,
+        help="Path to manifest JSON defining curves.",
+    )
+    parser_init.add_argument(
+        "--source-root",
+        default=None,
+        help="Optional base directory for relative curve JSON paths.",
+    )
+    parser_init.add_argument(
+        "--cache-root",
+        default=None,
+        help="Directory for generated pickle cache and index.json.",
+    )
+    parser_init.add_argument(
+        "--index-path",
+        default=None,
+        help="Optional explicit index.json path (overrides --cache-root).",
+    )
+    parser_init.add_argument(
+        "--force",
+        action="store_true",
+        help="Force recompilation even when hash matches existing cache.",
+    )
+    parser_init.add_argument(
+        "--json",
+        action="store_true",
+        help="Output JSON summary.",
+    )
+    parser_init.set_defaults(func=_cmd_init)
 
     parser_update = subparsers.add_parser(
         "update",
@@ -609,8 +695,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    force_debug = False
+    parse_argv: list[str] = []
+    for token in raw_argv:
+        if token in ("-d", "--debug"):
+            force_debug = True
+            continue
+        parse_argv.append(token)
+
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(parse_argv)
 
     if args.help_advanced:
         print(_advanced_card())
@@ -620,7 +715,8 @@ def main(argv: list[str] | None = None) -> int:
         print(_root_card())
         return 0
 
-    set_log_mode(getattr(args, "log_mode", "warning"))
+    selected_mode = "debug" if force_debug else getattr(args, "log_mode", "warning")
+    configure_cli_logger(selected_mode)
 
     try:
         return args.func(args)

@@ -103,7 +103,7 @@ def test_builtin_ops_support_numpy_and_pandas_async() -> None:
         )
         egg_pd = await registry.acall(
             "helper:eggbox",
-            inputs={"x": pd.Series([0.0, 0.5]), "y": pd.Series([0.0, 0.0])},
+            observables={"x": pd.Series([0.0, 0.5]), "y": pd.Series([0.0, 0.0])},
         )
         chi2_pd = await registry.acall(
             "stat:chi2_cov",

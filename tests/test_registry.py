@@ -69,6 +69,37 @@ def test_list_and_info() -> None:
     assert info["supports_async"] is True
 
 
+def test_info_prefers_metadata_summary_then_note() -> None:
+    registry = OperatorRegistry()
+
+    def f(x):
+        """Docstring summary line."""
+
+        return x
+
+    registry.register(
+        "f_summary",
+        f,
+        namespace="meta",
+        metadata={"summary": "Summary from metadata", "note": "Long note"},
+    )
+    info_summary = registry.info("meta:f_summary")
+    assert info_summary["docstring"] == "Summary from metadata"
+
+    registry.register(
+        "f_note",
+        f,
+        namespace="meta",
+        metadata={"note": "Summary from note"},
+    )
+    info_note = registry.info("meta:f_note")
+    assert info_note["docstring"] == "Summary from note"
+
+    registry.register("f_doc", f, namespace="meta")
+    info_doc = registry.info("meta:f_doc")
+    assert info_doc["docstring"] == "Docstring summary line."
+
+
 def test_global_registry_contains_builtin_ops() -> None:
     registry = get_global_registry()
 
@@ -76,17 +107,18 @@ def test_global_registry_contains_builtin_ops() -> None:
     assert registry.call("math:add", a=1, b=4) == 5
 
 
-def test_eggbox_builtin_supports_scalar_and_array_inputs() -> None:
+def test_eggbox_builtin_supports_scalar_and_array_observables() -> None:
     registry = get_global_registry()
 
     assert "helper:eggbox" in registry.list(namespace="helper")
+    assert "helper:eggbox2d" in registry.list(namespace="helper")
 
-    scalar = registry.call("helper:eggbox", inputs={"x": 0.5, "y": 0.0})
+    scalar = registry.call("helper:eggbox", observables={"x": 0.5, "y": 0.0})
     assert scalar == pytest.approx(243.0)
 
     values = registry.call(
         "helper:eggbox",
-        inputs={"x": np.array([0.0, 0.5]), "y": np.array([0.0, 0.0])},
+        observables={"x": np.array([0.0, 0.5]), "y": np.array([0.0, 0.0])},
     )
     assert np.allclose(values, np.array([32.0, 243.0]))
 
@@ -94,11 +126,26 @@ def test_eggbox_builtin_supports_scalar_and_array_inputs() -> None:
     assert info["metadata"]["category"] == "hep_scanner_benchmark"
 
 
-def test_eggbox_builtin_validates_input_mapping() -> None:
+def test_eggbox2d_builtin_returns_mapping_payload() -> None:
+    registry = get_global_registry()
+
+    scalar_result = registry.call("helper:eggbox2d", observables={"x": 0.5, "y": 0.0})
+    assert scalar_result["z"] == pytest.approx(243.0)
+
+    array_result = registry.call(
+        "helper:eggbox2d",
+        observables={"x": np.array([0.0, 0.5]), "y": np.array([0.0, 0.0])},
+        sample_info={"uuid": "s-01"},
+        cfg={"name": "EggBox"},
+    )
+    assert np.allclose(array_result["z"], np.array([32.0, 243.0]))
+
+
+def test_eggbox_builtin_validates_observables_mapping() -> None:
     registry = get_global_registry()
 
     with pytest.raises(OperatorCallError) as exc:
-        registry.call("helper:eggbox", inputs={"x": 0.5})
+        registry.call("helper:eggbox", observables={"x": 0.5})
 
     assert isinstance(exc.value.__cause__, ValueError)
 
@@ -196,7 +243,7 @@ def test_builtin_ops_support_numpy_and_pandas_sync() -> None:
 
     pd_eggbox = registry.call(
         "helper:eggbox",
-        inputs={"x": pd.Series([0.0, 0.5]), "y": pd.Series([0.0, 0.0])},
+        observables={"x": pd.Series([0.0, 0.5]), "y": pd.Series([0.0, 0.0])},
     )
     assert isinstance(pd_eggbox, pd.Series)
     assert np.allclose(pd_eggbox.to_numpy(), np.array([32.0, 243.0]))

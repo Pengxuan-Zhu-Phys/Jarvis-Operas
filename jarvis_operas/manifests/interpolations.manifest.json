@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "kind": "jarvis_operas_interpolation_manifest",
+  "description": "Built-in interpolation manifest library for Jarvis-Operas.",
+  "curves": [
+    {
+      "curve_id": "interp1_xy_flat",
+      "source": "curves/interp1_xy_flat.json",
+      "kind": "cubic",
+      "logX": false,
+      "logY": false,
+      "hot": true,
+      "metadata": {
+        "group": "interp1",
+        "mode": "x_flat_y_flat",
+        "note": "placeholder points; replace with production data"
+      }
+    },
+    {
+      "curve_id": "interp1_xlog_yflat",
+      "source": "curves/interp1_xlog_yflat.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": false,
+      "hot": true,
+      "metadata": {
+        "group": "interp1",
+        "mode": "x_log_y_flat",
+        "note": "placeholder points; replace with production data"
+      }
+    },
+    {
+      "curve_id": "interp1_xflat_ylog",
+      "source": "curves/interp1_xflat_ylog.json",
+      "kind": "cubic",
+      "logX": false,
+      "logY": true,
+      "hot": true,
+      "metadata": {
+        "group": "interp1",
+        "mode": "x_flat_y_log",
+        "note": "placeholder points; replace with production data"
+      }
+    },
+    {
+      "curve_id": "interp1_xy_log",
+      "source": "curves/interp1_xy_log.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "hot": true,
+      "metadata": {
+        "group": "interp1",
+        "mode": "x_log_y_log",
+        "note": "placeholder points; replace with production data"
+      }
+    },
+    {
+      "curve_id": "LZSI2024",
+      "source": "dmdd/LZSI_2024.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "hot": true,
+      "metadata": {
+        "group": "dmdd",
+        "mode": "x_log_y_log",
+        "note": "LZ 2024 result of DM-Nucleon SI 90% C.L. Upper limits. \n\tFrom https://arxiv.org/pdf/2410.17036", 
+        "summary": "LZ 2024 SI 90% C.L. upper limit curve (arXiv:2410.17036)."
+      }
+    }
+  ]
+}

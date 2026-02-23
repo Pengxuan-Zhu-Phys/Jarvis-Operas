@@ -1,6 +1,15 @@
 from __future__ import annotations
 
 from .api import get_global_registry, oper
+from .curves import (
+    get_curve_index_path,
+    init_curve_cache,
+    interpolation_manifest_resource,
+    load_hot_curve_function_table,
+    load_interpolation_manifest_library,
+    register_hot_curves,
+    register_hot_curves_in_registry,
+)
 from .errors import (
     OperatorCallError,
     OperatorConflict,
@@ -8,7 +17,7 @@ from .errors import (
     OperatorNotFound,
 )
 from .loading import discover_entrypoints, load_user_ops
-from .logging import get_log_mode, get_logger, set_log_mode
+from .logging import configure_cli_logger, get_log_mode, get_logger, set_log_mode
 from .persistence import (
     apply_persisted_overrides,
     delete_persisted_function,
@@ -32,6 +41,7 @@ __all__ = [
     "get_logger",
     "set_log_mode",
     "get_log_mode",
+    "configure_cli_logger",
     "oper",
     "registry",
     "get_global_registry",
@@ -45,4 +55,11 @@ __all__ = [
     "update_persisted_function",
     "delete_persisted_namespace",
     "update_persisted_namespace",
+    "get_curve_index_path",
+    "init_curve_cache",
+    "interpolation_manifest_resource",
+    "load_hot_curve_function_table",
+    "load_interpolation_manifest_library",
+    "register_hot_curves",
+    "register_hot_curves_in_registry",
 ]

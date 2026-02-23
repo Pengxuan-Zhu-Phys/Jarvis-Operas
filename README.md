@@ -31,9 +31,11 @@ jopera list --namespace math --json
 jopera info stat:chi2_cov --json
 jopera call math:add --kwargs '{"a": 1, "b": 2}'
 jopera acall stat:chi2_cov --arg residual=[1.0,-0.5] --arg cov=[[2.0,0.1],[0.1,1.0]]
-jopera call helper:eggbox --kwargs '{"inputs":{"x":0.5,"y":0.0}}'
+jopera call helper:eggbox --kwargs '{"observables":{"x":0.5,"y":0.0}}'
 jopera list --namespace math --log-mode info
 jopera call math:add --kwargs '{"a": 1, "b": 2}' --log-mode debug
+jopera init
+jopera init --manifest ./manifest.json --cache-root ~/.jarvis-operas/curve-cache
 jopera --help-advanced
 ```
 
@@ -58,6 +60,8 @@ CLI behavior:
 - `jopera info <name_or_id>` prints metadata (including a unique id) and a suggested next command
 - `jopera load <path>` persists this source path by default for future processes
 - `jopera load <path> --session-only` loads without persisting
+- `jopera init` precompiles bundled interpolation manifest library
+- `jopera init --manifest <manifest.json>` precompiles a custom curve JSON manifest
 - `jopera update <path>` updates all functions in script namespaces (default behavior)
 - `jopera update <path> --function <name>` updates one function from script
 - `jopera delete-func <name_or_id>` / `delete-namespace` remove persisted functions/namespaces
@@ -105,9 +109,9 @@ Example batch helper execution for Factory-side concurrent scans:
 results = await registry.acall_helper_many(
     "eggbox",
     [
-        {"inputs": {"x": 0.1, "y": 0.2}},
-        {"inputs": {"x": 0.3, "y": 0.4}},
-        {"inputs": {"x": 0.5, "y": 0.6}},
+        {"observables": {"x": 0.1, "y": 0.2}},
+        {"observables": {"x": 0.3, "y": 0.4}},
+        {"observables": {"x": 0.5, "y": 0.6}},
     ],
 )
 ```
@@ -185,11 +189,75 @@ __JARVIS_OPERAS__ = {
 }
 ```
 
+## Curve publish/runtime cache (manifest + JSON sources)
+
+Use this flow when you have many 1D interpolation curves and want runtime speed:
+
+1. Source of truth: `manifest.json` + per-curve JSON (`x`/`y` arrays)
+2. Precompile once: `jopera init` (bundled library) or `jopera init --manifest ./manifest.json` (custom)
+3. Runtime auto-registration: `get_global_registry()` registers hot curves as `interp:<curve_id>`
+4. Runtime load path uses `index.json` + `*.pkl` only (no source JSON in hot path)
+
+Namespace rule for registered interpolation operators:
+
+- If `namespace` is set in curve item, register as `<namespace>:<curve_id>`
+- Else if `metadata.group` (or `group`) is set, register as `<group>:<curve_id>`
+- Else fallback to `interp:<curve_id>`
+
+Bundled interpolation manifest library resource:
+
+- `jarvis_operas/manifests/interpolations.manifest.json`
+
+Minimal manifest example:
+
+```json
+{
+  "curves": [
+    {
+      "curve_id": "demo_curve",
+      "source": "curves/demo_curve.json",
+      "kind": "linear",
+      "hot": true
+    }
+  ]
+}
+```
+
+Curve source JSON example:
+
+```json
+{
+  "x": [0.0, 1.0, 2.0],
+  "y": [0.0, 1.0, 4.0]
+}
+```
+
+Python integration API:
+
+```python
+from jarvis_operas import (
+    init_curve_cache,
+    interpolation_manifest_resource,
+    load_hot_curve_function_table,
+    load_interpolation_manifest_library,
+    register_hot_curves,
+)
+
+library_manifest = load_interpolation_manifest_library()
+library_path = interpolation_manifest_resource()
+
+init_curve_cache("./manifest.json")
+table = load_hot_curve_function_table()
+
+funcs = {}
+updated = register_hot_curves(funcs)
+```
+
 ## Built-in operators
 
 - `math:add(a, b)`
 - `stat:chi2_cov(residual, cov)`
-- `helper:eggbox(inputs)` where `inputs` must be `{"x": ..., "y": ...}` (scalar, NumPy, or Pandas)
+- `helper:eggbox(observables)` where `observables` must be `{"x": ..., "y": ...}` (scalar, NumPy, or Pandas)
 - `math:identity(x)`
 
 All built-ins can be called via sync/async registry APIs and accept scalar, NumPy, and Pandas inputs where applicable.

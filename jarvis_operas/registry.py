@@ -318,13 +318,8 @@ class OperatorRegistry:
     def call(self, full_name: str, logger: Any | None = None, **kwargs: Any) -> Any:
         resolved_full_name = self.resolve_name(full_name)
         record = self._get_record(resolved_full_name)
-        call_logger = get_logger(
-            logger or self._logger,
-            mode=self._log_mode,
-            operator=resolved_full_name,
-            action="call",
-        )
-        call_kwargs = self._build_call_kwargs(record, kwargs, call_logger)
+        injected_logger = logger if logger is not None else self._logger
+        call_kwargs = self._build_call_kwargs(record, kwargs, injected_logger)
 
         try:
             result = record.fn(**call_kwargs)
@@ -347,13 +342,8 @@ class OperatorRegistry:
     async def acall(self, full_name: str, logger: Any | None = None, **kwargs: Any) -> Any:
         resolved_full_name = self.resolve_name(full_name)
         record = self._get_record(resolved_full_name)
-        call_logger = get_logger(
-            logger or self._logger,
-            mode=self._log_mode,
-            operator=resolved_full_name,
-            action="acall",
-        )
-        call_kwargs = self._build_call_kwargs(record, kwargs, call_logger)
+        injected_logger = logger if logger is not None else self._logger
+        call_kwargs = self._build_call_kwargs(record, kwargs, injected_logger)
 
         try:
             return await self._execute_async(record, call_kwargs)
@@ -381,12 +371,7 @@ class OperatorRegistry:
 
         resolved_full_name = self.resolve_name(full_name)
         record = self._get_record(resolved_full_name)
-        batch_logger = get_logger(
-            logger or self._logger,
-            mode=self._log_mode,
-            operator=resolved_full_name,
-            action="acall_many",
-        )
+        injected_logger = logger if logger is not None else self._logger
         call_items = list(calls)
         if not call_items:
             return []
@@ -397,8 +382,7 @@ class OperatorRegistry:
             if not isinstance(raw_kwargs, Mapping):
                 raise TypeError(f"calls[{index}] must be a mapping of kwargs")
 
-            call_logger = batch_logger.bind(batch_index=index)
-            call_kwargs = self._build_call_kwargs(record, dict(raw_kwargs), call_logger)
+            call_kwargs = self._build_call_kwargs(record, dict(raw_kwargs), injected_logger)
 
             try:
                 if semaphore is None:
@@ -453,15 +437,25 @@ class OperatorRegistry:
         record = self._get_record(resolved_full_name)
         docstring = inspect.getdoc(record.fn) or ""
         doc_summary = docstring.splitlines()[0] if docstring else ""
+        metadata = dict(record.metadata)
+        metadata_summary = metadata.get("summary")
+        metadata_note = metadata.get("note")
+
+        if isinstance(metadata_summary, str) and metadata_summary.strip():
+            summary = metadata_summary.strip()
+        elif isinstance(metadata_note, str) and metadata_note.strip():
+            summary = metadata_note.strip()
+        else:
+            summary = doc_summary
 
         return {
             "name": record.full_name,
             "id": record.operator_id,
             "namespace": record.namespace,
             "short_name": record.name,
-            "metadata": dict(record.metadata),
+            "metadata": metadata,
             "signature": record.signature,
-            "docstring": doc_summary,
+            "docstring": summary,
             "module": getattr(record.fn, "__module__", ""),
             "qualname": getattr(record.fn, "__qualname__", ""),
             "is_async": record.is_async,
@@ -507,10 +501,14 @@ class OperatorRegistry:
     def _build_call_kwargs(
         record: OperatorRecord,
         kwargs: dict[str, Any],
-        logger: Any,
+        logger: Any | None,
     ) -> dict[str, Any]:
         call_kwargs = dict(kwargs)
-        if "logger" not in call_kwargs and (record.accepts_logger or record.accepts_var_kwargs):
+        if (
+            logger is not None
+            and "logger" not in call_kwargs
+            and (record.accepts_logger or record.accepts_var_kwargs)
+        ):
             call_kwargs["logger"] = logger
         return call_kwargs
 
