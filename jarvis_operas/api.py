@@ -6,6 +6,7 @@ from threading import Lock
 from typing import Any
 
 from .builtins import register_builtins
+from .curves import register_hot_curves_in_registry
 from .registry import OperatorRegistry
 
 
@@ -33,6 +34,7 @@ def get_global_registry() -> OperatorRegistry:
                 from .persistence import apply_persisted_overrides, load_persisted_user_ops
 
                 load_persisted_user_ops(registry)
+                register_hot_curves_in_registry(registry)
                 apply_persisted_overrides(registry)
                 _global_registry = registry
 

@@ -17,6 +17,7 @@ _CURRENT_MODE = _DEFAULT_MODE
 _SINK_ID: int | None = None
 _INITIALIZED = False
 _LOCK = RLock()
+_OPERAS_LOG_DOMAIN = "jarvis_operas"
 
 
 def _normalize_mode(mode: str) -> str:
@@ -39,12 +40,28 @@ def _custom_format(record: dict[str, Any]) -> str:
     module = record["extra"].get("module", "Jarvis-Operas")
     if "raw" in record["extra"]:
         return "{message}\n"
+    level_prefix = (
+        f"[<level>{record['level']}</level>] >>> "
+        if _CURRENT_MODE == "debug"
+        else ">>> "
+    )
     return (
         f"\n <cyan>{module}</cyan> "
         f"\n\t-> <green>{record['time']:MM-DD HH:mm:ss.SSS}</green> - "
-        f"[<level>{record['level']}</level>] >>> \n"
-        f"<level>{record['message']}</level> "
+        f"{level_prefix}\n"
+        f"<level>{{message}}</level> "
     )
+
+
+def _stream_filter(record: dict[str, Any]) -> bool:
+    extra = record.get("extra", {})
+    domain = extra.get("_log_domain")
+    if domain is not None:
+        return domain == _OPERAS_LOG_DOMAIN
+    if extra.get("_jarvis_operas", False):
+        return True
+    module = extra.get("module", "")
+    return isinstance(module, str) and module.startswith("Jarvis-Operas")
 
 
 def _configure_default_logger(mode: str) -> None:
@@ -78,14 +95,22 @@ def _configure_default_logger(mode: str) -> None:
             colorize=True,
             enqueue=True,
             level=level,
+            filter=_stream_filter,
         )
         _CURRENT_MODE = normalized_mode
 
 
 def set_log_mode(mode: str) -> None:
-    """Set default log mode for Jarvis-Operas internal logger."""
+    """Configure Jarvis-Operas CLI sink and set its verbosity."""
 
     _configure_default_logger(mode)
+
+
+def configure_cli_logger(mode: str | None = None) -> None:
+    """Configure console sink for jopera CLI only."""
+
+    target_mode = _initial_mode_from_env() if mode is None else mode
+    _configure_default_logger(target_mode)
 
 
 def get_log_mode() -> str:
@@ -100,26 +125,23 @@ def get_logger(
     mode: str | None = None,
     **bind_kwargs: Any,
 ):
-    """Return a usable loguru logger without creating duplicate handlers."""
+    """Return a bound logger.
 
-    global _CURRENT_MODE
+    In library mode (logger=None), initialize Jarvis-Operas sink lazily so
+    default output follows warning-level Operas formatting instead of loguru's
+    implicit sink.
+    """
 
     if logger is None:
-        if mode is None:
-            if not _INITIALIZED:
-                _CURRENT_MODE = _initial_mode_from_env()
-            target_mode = _CURRENT_MODE
-        else:
-            target_mode = mode
+        target_mode = _initial_mode_from_env() if mode is None else mode
         _configure_default_logger(target_mode)
-        active_logger = _default_logger.bind(
-            module="Jarvis-Operas",
-            to_console=True,
-            Jarvis=True,
-        )
+        active_logger = _default_logger
     else:
         active_logger = logger
 
-    if bind_kwargs:
-        return active_logger.bind(**bind_kwargs)
-    return active_logger
+    bind_kwargs.setdefault("module", "Jarvis-Operas")
+    bind_kwargs.setdefault("to_console", False)
+    bind_kwargs.setdefault("Jarvis", False)
+    bind_kwargs.setdefault("_jarvis_operas", True)
+    bind_kwargs.setdefault("_log_domain", _OPERAS_LOG_DOMAIN)
+    return active_logger.bind(**bind_kwargs)

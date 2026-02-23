@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+
+_JOERL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+_joerl_usage() {
+  cat <<'EOF'
+Usage:
+  joerl <version>
+
+Example:
+  joerl 1.1.1
+EOF
+}
+
+joerl() {
+  (
+    set -euo pipefail
+
+    if [[ $# -eq 1 && ( "$1" == "-h" || "$1" == "--help" ) ]]; then
+      _joerl_usage
+      exit 0
+    fi
+
+    if [[ $# -ne 1 ]]; then
+      _joerl_usage
+      exit 1
+    fi
+
+    local version="$1"
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      echo "[joerl] Invalid version: $version (expected X.Y.Z)" >&2
+      exit 2
+    fi
+
+    cd "$_JOERL_DIR"
+
+    if [[ ! -f "pyproject.toml" ]]; then
+      echo "[joerl] pyproject.toml not found in $_JOERL_DIR" >&2
+      exit 2
+    fi
+
+    echo "[joerl] Step 1/7: bump version -> $version"
+    python - <<'PY' "$version"
+from pathlib import Path
+import re
+import sys
+
+version = sys.argv[1]
+path = Path("pyproject.toml")
+text = path.read_text(encoding="utf-8")
+updated, n = re.subn(
+    r'(?m)^version\s*=\s*"[^"]+"$',
+    f'version = "{version}"',
+    text,
+    count=1,
+)
+if n != 1:
+    raise SystemExit("[joerl] Failed to locate version field in pyproject.toml")
+path.write_text(updated, encoding="utf-8")
+print(f"[joerl] pyproject.toml updated to {version}")
+PY
+
+    echo "[joerl] Step 2/7: clean build artifacts"
+    rm -rf dist build Jarvis_Operas.egg-info
+
+    echo "[joerl] Step 3/7: build package"
+    python -m pip install --disable-pip-version-check -q build twine
+    python -m build
+    python -m twine check dist/*
+
+    echo "[joerl] Step 4/7: upload to PyPI"
+    python -m twine upload dist/*
+
+    echo "[joerl] Step 5/7: clean local pip residual metadata"
+    python - <<'PY'
+from __future__ import annotations
+
+import glob
+import os
+import shutil
+import site
+
+patterns = [
+    "jarvis_operas",
+    "jarvis_operas.py",
+    "Jarvis_Operas-*.dist-info",
+    "jarvis_operas-*.dist-info",
+    "__editable__.jarvis_operas-*.pth",
+    "__editable___jarvis_operas_*_finder.py",
+    "jarvis_operas*.egg-info",
+]
+
+site_paths = []
+try:
+    site_paths.extend(site.getsitepackages())
+except Exception:
+    pass
+try:
+    site_paths.append(site.getusersitepackages())
+except Exception:
+    pass
+
+seen = set()
+for base in site_paths:
+    if not base or base in seen:
+        continue
+    seen.add(base)
+    if not os.path.isdir(base):
+        continue
+    for pattern in patterns:
+        for path in glob.glob(os.path.join(base, pattern)):
+            if os.path.isdir(path):
+                shutil.rmtree(path, ignore_errors=True)
+                print(f"[joerl] removed dir: {path}")
+            else:
+                try:
+                    os.remove(path)
+                    print(f"[joerl] removed file: {path}")
+                except FileNotFoundError:
+                    pass
+PY
+
+    echo "[joerl] Step 6/7: reinstall from PyPI -> Jarvis-Operas==$version"
+    python -m pip install --no-cache-dir --force-reinstall --no-deps "Jarvis-Operas==$version"
+
+    echo "[joerl] Step 7/7: verify local install"
+    python - <<'PY'
+import importlib.metadata as m
+import jarvis_operas
+
+print("[joerl] installed version:", m.version("Jarvis-Operas"))
+print("[joerl] imported from:", jarvis_operas.__file__)
+PY
+    python -m pip show Jarvis-Operas | sed -n '1,40p'
+
+    echo "[joerl] Done."
+  )
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  echo "This file defines the 'joerl' bash function. Please source it first:" >&2
+  echo "  source \"$0\"" >&2
+  exit 1
+fi

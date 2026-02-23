@@ -6,42 +6,42 @@ import numpy as np
 import pandas as pd
 
 
-def eggbox(inputs=None, observables=None, logger=None):
-    """Evaluate EggBox benchmark with x/y from inputs or observables mapping."""
+def eggbox(observables=None, logger=None):
+    """Evaluate EggBox benchmark with x/y from observables mapping."""
 
-    source = None
-    if inputs is not None:
-        if not isinstance(inputs, Mapping):
-            raise ValueError("inputs must be a mapping with keys 'x' and 'y'")
-        source = dict(inputs)
-    if observables is not None:
-        if not isinstance(observables, Mapping):
-            raise ValueError("observables must be a mapping when provided")
-        if source is None:
-            source = dict(observables)
-        else:
-            source = {**observables, **source}
-
-    if source is None:
-        raise ValueError("eggbox requires 'inputs' or 'observables' mapping.")
-    if "x" not in source or "y" not in source:
+    if observables is None:
+        if logger is not None:
+            logger.error("eggbox requires 'observables' mapping.")
+        raise ValueError("eggbox requires 'observables' mapping.")
+    if not isinstance(observables, Mapping):
+        if logger is not None:
+            logger.error("observables must be a mapping when provided")
+        raise ValueError("observables must be a mapping when provided")
+    if "x" not in observables or "y" not in observables:
+        if logger is not None:
+            logger.error("mapping must contain both 'x' and 'y'")
         raise ValueError("mapping must contain both 'x' and 'y'")
 
-    x = _to_numeric_array_like(source["x"])
-    y = _to_numeric_array_like(source["y"])
+    x = _to_numeric_array_like(observables["x"])
+    y = _to_numeric_array_like(observables["y"])
     z = (np.sin(np.pi * x) * np.cos(np.pi * y) + 2.0) ** 5
 
     if logger is not None:
-        logger.debug("eggbox called")
+        logger.debug("Jarvis-Operas -> EggBox 2D function called.")
 
     if _is_numpy_scalar(z):
         return float(z)
     return z
 
 
-def eggbox2d(inputs=None, observables=None, logger=None):
-    """Backward-compatible alias for eggbox."""
-    return eggbox(inputs=inputs, observables=observables, logger=logger)
+def eggbox2d(observables=None, logger=None, **_):
+    """EggBox operator with dict-style output for mapping workflows."""
+    return {
+        "z": eggbox(
+            observables=observables,
+            logger=logger,
+        )
+    }
 
 
 def _to_numeric_array_like(value):
