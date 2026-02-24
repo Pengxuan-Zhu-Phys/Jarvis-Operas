@@ -5,7 +5,7 @@ Jarvis-Operas is a standalone operator layer for registering, loading, and calli
 - Scope: operators only (likelihood, chi2, prior mapping, data transforms, etc.)
 - No dependency on Jarvis-HEP internals
 - Native async entrypoint for Jarvis-HEP style execution (`await registry.acall(...)`)
-- Stable `"<namespace>:<name>"` naming for references from Jarvis-HEP/Jarvis-PLOT YAML
+- Stable `"<namespace>.<name>"` naming for references from Jarvis-HEP/Jarvis-PLOT YAML
 
 ## Install
 
@@ -28,12 +28,12 @@ jopera
 jopera help examples
 jopera list --namespace math
 jopera list --namespace math --json
-jopera info stat:chi2_cov --json
-jopera call math:add --kwargs '{"a": 1, "b": 2}'
-jopera acall stat:chi2_cov --arg residual=[1.0,-0.5] --arg cov=[[2.0,0.1],[0.1,1.0]]
-jopera call helper:eggbox --kwargs '{"observables":{"x":0.5,"y":0.0}}'
+jopera info stat.chi2_cov --json
+jopera call math.add --kwargs '{"a": 1, "b": 2}'
+jopera acall stat.chi2_cov --arg residual=[1.0,-0.5] --arg cov=[[2.0,0.1],[0.1,1.0]]
+jopera call helper.eggbox --kwargs '{"observables":{"x":0.5,"y":0.0}}'
 jopera list --namespace math --log-mode info
-jopera call math:add --kwargs '{"a": 1, "b": 2}' --log-mode debug
+jopera call math.add --kwargs '{"a": 1, "b": 2}' --log-mode debug
 jopera init
 jopera init --manifest ./manifest.json --cache-root ~/.jarvis-operas/curve-cache
 jopera --help-advanced
@@ -43,11 +43,11 @@ Load user operators directly in CLI:
 
 ```bash
 jopera load /absolute/path/to/my_ops.py
-jopera call my_ops:my_op --user-ops /absolute/path/to/my_ops.py --arg x=10
-jopera info my_ops:my_op --json
+jopera call my_ops.my_op --user-ops /absolute/path/to/my_ops.py --arg x=10
+jopera info my_ops.my_op --json
 jopera update /absolute/path/to/my_ops.py
 jopera update /absolute/path/to/my_ops.py --function my_op
-jopera delete-func my_ops:old_op
+jopera delete-func my_ops.old_op
 jopera delete-func h12345
 jopera delete-namespace legacy_ops
 ```
@@ -72,23 +72,23 @@ CLI behavior:
 from jarvis_operas import get_global_registry
 
 registry = get_global_registry()
-registry.call("math:add", a=1, b=2)
-registry.call("math:identity", x={"k": 1})
+registry.call("math.add", a=1, b=2)
+registry.call("math.identity", x={"k": 1})
 ```
 
 Supported namespace convention:
 
 - Built-ins use feature namespaces, e.g.:
-  - `math:<name>`
-  - `stat:<name>`
-  - `helper:<name>`
-- User operator files default to `<script_name>:<func_name>`
+  - `math.<name>`
+  - `stat.<name>`
+  - `helper.<name>`
+- User operator files default to `<script_name>.<func_name>`
 
 ## Async call (Jarvis-HEP Factory/Module friendly)
 
 ```python
 result = await registry.acall(
-    "stat:chi2_cov",
+    "stat.chi2_cov",
     residual=[1.0, -0.5],
     cov=[[2.0, 0.1], [0.1, 1.0]],
     observables={"obs": 1.0},
@@ -161,7 +161,7 @@ Persistence store location:
 - The same store keeps persistent delete/update overrides for functions and namespaces
 
 By default, `load_user_ops("./my_ops.py", ...)` uses `my_ops` as namespace, so
-`my_op` becomes `my_ops:my_op`.
+`my_op` becomes `my_ops.my_op`.
 
 `my_ops.py` can export operators with either style:
 
@@ -176,7 +176,7 @@ def my_chi2(residual, cov, logger=None):
 ```
 
 When loaded by `load_user_ops("./my_ops.py", ...)`, this is registered as
-`my_ops:my_chi2`.
+`my_ops.my_chi2`.
 
 2. Explicit whitelist
 
@@ -195,14 +195,14 @@ Use this flow when you have many 1D interpolation curves and want runtime speed:
 
 1. Source of truth: `manifest.json` + per-curve JSON (`x`/`y` arrays)
 2. Precompile once: `jopera init` (bundled library) or `jopera init --manifest ./manifest.json` (custom)
-3. Runtime auto-registration: `get_global_registry()` registers hot curves as `interp:<curve_id>`
+3. Runtime auto-registration: `get_global_registry()` registers hot curves as `interp.<curve_id>`
 4. Runtime load path uses `index.json` + `*.pkl` only (no source JSON in hot path)
 
 Namespace rule for registered interpolation operators:
 
-- If `namespace` is set in curve item, register as `<namespace>:<curve_id>`
-- Else if `metadata.group` (or `group`) is set, register as `<group>:<curve_id>`
-- Else fallback to `interp:<curve_id>`
+- If `namespace` is set in curve item, register as `<namespace>.<curve_id>`
+- Else if `metadata.group` (or `group`) is set, register as `<group>.<curve_id>`
+- Else fallback to `interp.<curve_id>`
 
 Bundled interpolation manifest library resource:
 
@@ -255,18 +255,18 @@ updated = register_hot_curves(funcs)
 
 ## Built-in operators
 
-- `math:add(a, b)`
-- `stat:chi2_cov(residual, cov)`
-- `helper:eggbox(observables)` where `observables` must be `{"x": ..., "y": ...}` (scalar, NumPy, or Pandas)
-- `math:identity(x)`
+- `math.add(a, b)`
+- `stat.chi2_cov(residual, cov)`
+- `helper.eggbox(observables)` where `observables` must be `{"x": ..., "y": ...}` (scalar, NumPy, or Pandas)
+- `math.identity(x)`
 
 All built-ins can be called via sync/async registry APIs and accept scalar, NumPy, and Pandas inputs where applicable.
 Built-ins also support `observables` dict input (Jarvis-HEP style), e.g.:
 
 ```python
-registry.call("math:add", observables={"a": 1.0, "b": 2.0})
-registry.call("stat:chi2_cov", observables={"residual": [1.0, 0.0], "cov": [[2.0, 0.0], [0.0, 1.0]]})
-registry.call("helper:eggbox", observables={"x": 0.5, "y": 0.0})
+registry.call("math.add", observables={"a": 1.0, "b": 2.0})
+registry.call("stat.chi2_cov", observables={"residual": [1.0, 0.0], "cov": [[2.0, 0.0], [0.0, 1.0]]})
+registry.call("helper.eggbox", observables={"x": 0.5, "y": 0.0})
 ```
 
 ## Query registry for external UIs (JHEP/JPlot)
@@ -274,7 +274,7 @@ registry.call("helper:eggbox", observables={"x": 0.5, "y": 0.0})
 ```python
 registry.list()
 registry.list(namespace="math")
-registry.info("stat:chi2_cov")
+registry.info("stat.chi2_cov")
 ```
 
 `registry.info(...)` returns metadata, signature, docstring summary, module/qualname, and async flag.
