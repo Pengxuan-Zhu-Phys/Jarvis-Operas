@@ -24,7 +24,7 @@ async def _run_async_cases(registry, operator_id: str) -> None:
 
     # Async call by operator name, plain list input.
     async_list = await registry.acall(
-        "stat:chi2_cov",
+        "stat.chi2_cov",
         residual=[1.0, 0.0],
         cov=[[2.0, 0.0], [0.0, 1.0]],
     )
@@ -32,7 +32,7 @@ async def _run_async_cases(registry, operator_id: str) -> None:
 
     # Async call by observables dict (Jarvis-HEP style).
     async_obs = await registry.acall(
-        "stat:chi2_cov",
+        "stat.chi2_cov",
         observables={
             "residual": [1.0, 0.0],
             "cov": [[2.0, 0.0], [0.0, 1.0]],
@@ -51,7 +51,7 @@ async def _run_async_cases(registry, operator_id: str) -> None:
 
 def main() -> None:
     registry = get_global_registry()
-    info = registry.info("stat:chi2_cov")
+    info = registry.info("stat.chi2_cov")
     operator_id = info["id"]
     print(f"Testing operator: {info['name']} (id={operator_id})")
 
@@ -60,7 +60,7 @@ def main() -> None:
 
     # 1) Sync call by operator name, list input.
     sync_list = registry.call(
-        "stat:chi2_cov",
+        "stat.chi2_cov",
         residual=[1.0, 0.0],
         cov=[[2.0, 0.0], [0.0, 1.0]],
     )
@@ -68,7 +68,7 @@ def main() -> None:
 
     # 2) Sync call by operator name, numpy input.
     sync_numpy = registry.call(
-        "stat:chi2_cov",
+        "stat.chi2_cov",
         residual=np.array([1.0, 0.0]),
         cov=np.array([[2.0, 0.0], [0.0, 1.0]]),
     )
@@ -76,7 +76,7 @@ def main() -> None:
 
     # 3) Sync call by operator name, pandas DataFrame input.
     sync_pandas = registry.call(
-        "stat:chi2_cov",
+        "stat.chi2_cov",
         residual=pd.DataFrame(
             {"x": [1.0, 2.0], "y": [0.0, 1.0]},
             index=["s1", "s2"],
@@ -95,7 +95,7 @@ def main() -> None:
 
     # 4) Sync call by observables dict (Jarvis-HEP style).
     sync_obs = registry.call(
-        "stat:chi2_cov",
+        "stat.chi2_cov",
         observables={
             "residual": [1.0, 0.0],
             "cov": [[2.0, 0.0], [0.0, 1.0]],

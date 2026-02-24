@@ -11,8 +11,9 @@ from importlib.metadata import PackageNotFoundError, version as dist_version
 from typing import Any
 
 from . import get_global_registry, load_user_ops
-from .curves import init_curve_cache
+from .curves import init_curve_cache, register_hot_curves_in_registry
 from .errors import OperatorNotFound
+from .integration import refresh_sympy_dicts_if_global_registry
 from .logging import configure_cli_logger
 from .persistence import (
     apply_persisted_overrides,
@@ -56,15 +57,15 @@ def _root_card() -> str:
         Start here:
           jopera init
           jopera list
-          jopera info helper:eggbox
-          jopera call math:add --kwargs '{"a":1,"b":2}'
+          jopera info helper.eggbox
+          jopera call math.add --kwargs '{"a":1,"b":2}'
           jopera init --manifest ./manifest.json
           jopera load /path/to/my_ops.py
 
         Namespaces:
-          math:*    numeric helpers
-          stat:*    statistics operators
-          helper:*  HEP scan helpers
+          math.*    numeric helpers
+          stat.*    statistics operators
+          helper.*  HEP scan helpers
 
         Use 'jopera --help' for full options, 'jopera help examples' for copy-paste examples.
         """
@@ -79,11 +80,11 @@ def _examples_card() -> str:
           jopera init --manifest ./manifest.json
           jopera list
           jopera list --namespace helper
-          jopera info stat:chi2_cov
-          jopera call math:add --kwargs '{"a":1,"b":2}'
-          jopera call helper:eggbox --kwargs '{"inputs":{"x":0.5,"y":0.0}}'
+          jopera info stat.chi2_cov
+          jopera call math.add --kwargs '{"a":1,"b":2}'
+          jopera call helper.eggbox --kwargs '{"inputs":{"x":0.5,"y":0.0}}'
           jopera load ./my_ops.py
-          jopera call my_ops:my_func --arg x=1 --arg y=2
+          jopera call my_ops.my_func --arg x=1 --arg y=2
           jopera update ./my_ops.py
           jopera update ./my_ops.py --function my_func
           jopera delete-namespace my_ops
@@ -106,9 +107,22 @@ def _advanced_card() -> str:
           init --force        Rebuild all curve cache pickle artifacts
 
         Example:
-          jopera call my_ops:my_func --user-ops ./my_ops.py --arg x=1 --arg y=2 --log-mode debug
+          jopera call my_ops.my_func --user-ops ./my_ops.py --arg x=1 --arg y=2 --log-mode debug
         """
     ).strip()
+
+
+def _split_full_name(full_name: str) -> tuple[str, str] | None:
+    normalized = full_name.strip()
+    if not normalized:
+        return None
+    if "." in normalized and ":" in normalized:
+        return None
+    if "." in normalized:
+        return normalized.split(".", 1)
+    if ":" in normalized:
+        return normalized.split(":", 1)
+    return None
 
 
 def _parse_kv_arg(raw: str) -> tuple[str, Any]:
@@ -204,10 +218,10 @@ def _print_list_human(entries: list[dict[str, Any]], namespace_filter: str | Non
 
 
 def _suggest_next_info_command(full_name: str, namespace: str) -> str:
-    if full_name == "helper:eggbox":
-        return "jopera call helper:eggbox --kwargs '{\"inputs\":{\"x\":0.5,\"y\":0.0}}'"
-    if full_name == "math:add":
-        return "jopera call math:add --kwargs '{\"a\":1,\"b\":2}'"
+    if full_name == "helper.eggbox":
+        return "jopera call helper.eggbox --kwargs '{\"inputs\":{\"x\":0.5,\"y\":0.0}}'"
+    if full_name == "math.add":
+        return "jopera call math.add --kwargs '{\"a\":1,\"b\":2}'"
     if namespace == "helper":
         return f"jopera call {full_name} --kwargs '{{\"inputs\":{{\"x\":0.5,\"y\":0.0}}}}'"
     return f"jopera call {full_name} --kwargs '{{}}'"
@@ -247,8 +261,9 @@ def _print_not_found_error(full_name: str, names: list[str]) -> None:
         print("Did you mean:", file=sys.stderr)
         for item in suggestions:
             print(f"  - {item}", file=sys.stderr)
-    if ":" in full_name:
-        namespace = full_name.split(":", 1)[0]
+    split = _split_full_name(full_name)
+    if split is not None:
+        namespace, _ = split
         print("Try:", file=sys.stderr)
         print(f"  jopera list --namespace {namespace}", file=sys.stderr)
     else:
@@ -265,6 +280,7 @@ def _load_sources(user_ops: list[str]) -> list[str]:
 
     if user_ops:
         apply_persisted_overrides(registry)
+        refresh_sympy_dicts_if_global_registry(registry)
 
     return sorted(set(loaded))
 
@@ -317,6 +333,7 @@ def _cmd_load(args: argparse.Namespace) -> int:
     loaded = load_user_ops(args.path, registry, namespace=args.namespace)
     if not args.session_only:
         persist_user_ops(args.path, namespace=args.namespace)
+    refresh_sympy_dicts_if_global_registry(registry)
     _print_value(loaded, as_json=True)
     return 0
 
@@ -342,12 +359,17 @@ def _cmd_update(args: argparse.Namespace) -> int:
     loaded = load_user_ops(args.path, staging, namespace=args.namespace)
 
     if args.function:
-        targets = [
-            full_name
-            for full_name in loaded
-            if full_name.split(":", 1)[1] == args.function
-            and (args.namespace is None or full_name.split(":", 1)[0] == args.namespace)
-        ]
+        targets: list[str] = []
+        for full_name in loaded:
+            split = _split_full_name(full_name)
+            if split is None:
+                continue
+            namespace, short_name = split
+            if short_name != args.function:
+                continue
+            if args.namespace is not None and namespace != args.namespace:
+                continue
+            targets.append(full_name)
         if not targets:
             raise ValueError(
                 f"Function '{args.function}' was not found in script '{args.path}'."
@@ -361,7 +383,14 @@ def _cmd_update(args: argparse.Namespace) -> int:
         targets = list(loaded)
 
     if not args.function:
-        target_namespaces = sorted({name.split(":", 1)[0] for name in targets})
+        target_namespaces = sorted(
+            {
+                split[0]
+                for name in targets
+                for split in [_split_full_name(name)]
+                if split is not None
+            }
+        )
         for namespace in target_namespaces:
             registry.delete_namespace(namespace)
             if not args.session_only:
@@ -378,7 +407,9 @@ def _cmd_update(args: argparse.Namespace) -> int:
                 pass
             if not args.session_only:
                 clear_persisted_function_overrides(full_name)
-                clear_persisted_namespace_overrides(full_name.split(":", 1)[0])
+                split = _split_full_name(full_name)
+                if split is not None:
+                    clear_persisted_namespace_overrides(split[0])
 
         _register_from_registry(staging, registry, full_name)
         updated.append(full_name)
@@ -386,6 +417,7 @@ def _cmd_update(args: argparse.Namespace) -> int:
     if not args.session_only:
         persist_user_ops(args.path, namespace=args.namespace)
 
+    refresh_sympy_dicts_if_global_registry(registry)
     _print_value(
         {
             "updated": updated,
@@ -432,6 +464,10 @@ def _cmd_init(args: argparse.Namespace) -> int:
                 index_path=args.index_path,
                 force=bool(args.force),
             )
+    register_hot_curves_in_registry(
+        get_global_registry(),
+        index_path=summary["index_path"],
+    )
     if args.json:
         _print_value(summary, as_json=True)
         return 0
@@ -450,6 +486,7 @@ def _cmd_delete_func(args: argparse.Namespace) -> int:
     registry.delete(args.target)
     if not args.session_only:
         delete_persisted_function(resolved_full_name)
+    refresh_sympy_dicts_if_global_registry(registry)
     _print_value({"deleted": resolved_full_name, "session_only": bool(args.session_only)}, as_json=True)
     return 0
 
@@ -459,6 +496,7 @@ def _cmd_delete_namespace(args: argparse.Namespace) -> int:
     deleted = registry.delete_namespace(args.namespace)
     if not args.session_only:
         delete_persisted_namespace(args.namespace)
+    refresh_sympy_dicts_if_global_registry(registry)
     _print_value(
         {
             "namespace": args.namespace,
@@ -491,7 +529,7 @@ def _add_log_mode_arg(parser: argparse.ArgumentParser) -> None:
 def _add_call_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "full_name",
-        help="Full operator name, e.g. math:add or my_ops:my_op",
+        help="Full operator name, e.g. math.add or my_ops.my_op",
     )
     parser.add_argument(
         "--kwargs",

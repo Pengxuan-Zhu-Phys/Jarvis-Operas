@@ -20,7 +20,7 @@ def test_acall_supports_async_operator() -> None:
 
     registry.register("async_add", async_add, namespace="core")
 
-    result = asyncio.run(registry.acall("core:async_add", a=2, b=5))
+    result = asyncio.run(registry.acall("core.async_add", a=2, b=5))
     assert result == 7
 
 
@@ -36,7 +36,7 @@ def test_acall_offloads_sync_operator() -> None:
     async def runner() -> tuple[float, int]:
         start = time.perf_counter()
         tick_task = asyncio.create_task(asyncio.sleep(0.02, result=1))
-        op_task = asyncio.create_task(registry.acall("core:slow_add", a=3, b=4))
+        op_task = asyncio.create_task(registry.acall("core.slow_add", a=3, b=4))
 
         await tick_task
         tick_elapsed = time.perf_counter() - start
@@ -79,7 +79,7 @@ def test_acall_many_accepts_full_operator_name() -> None:
 
     values = asyncio.run(
         registry.acall_many(
-            "helper:inc",
+            "helper.inc",
             [{"x": 1}, {"x": 3}],
         )
     )
@@ -92,21 +92,21 @@ def test_builtin_ops_support_numpy_and_pandas_async() -> None:
 
     async def runner():
         add_np = await registry.acall(
-            "math:add",
+            "math.add",
             a=np.array([1.0, 2.0]),
             b=np.array([3.0, 4.0]),
         )
         add_pd = await registry.acall(
-            "math:add",
+            "math.add",
             a=pd.Series([1.0, 2.0]),
             b=pd.Series([3.0, 4.0]),
         )
         egg_pd = await registry.acall(
-            "helper:eggbox",
+            "helper.eggbox",
             observables={"x": pd.Series([0.0, 0.5]), "y": pd.Series([0.0, 0.0])},
         )
         chi2_pd = await registry.acall(
-            "stat:chi2_cov",
+            "stat.chi2_cov",
             residual=pd.DataFrame({"x": [1.0], "y": [0.0]}),
             cov=pd.DataFrame([[2.0, 0.0], [0.0, 1.0]], columns=["x", "y"], index=["x", "y"]),
         )
@@ -127,17 +127,17 @@ def test_builtin_ops_support_observables_dict_async() -> None:
     registry = get_global_registry()
 
     async def runner():
-        add_value = await registry.acall("math:add", observables={"a": 1.0, "b": 2.0})
-        identity_value = await registry.acall("math:identity", observables={"x": 3.0})
+        add_value = await registry.acall("math.add", observables={"a": 1.0, "b": 2.0})
+        identity_value = await registry.acall("math.identity", observables={"x": 3.0})
         chi2_value = await registry.acall(
-            "stat:chi2_cov",
+            "stat.chi2_cov",
             observables={
                 "residual": [1.0, 0.0],
                 "cov": [[2.0, 0.0], [0.0, 1.0]],
             },
         )
         egg_value = await registry.acall(
-            "helper:eggbox",
+            "helper.eggbox",
             observables={"x": 0.5, "y": 0.0},
         )
         return add_value, identity_value, chi2_value, egg_value

@@ -18,5 +18,5 @@ def register_builtins(registry) -> list[str]:
     registered = []
     for namespace, name, fn, metadata in BUILTIN_OPERATORS:
         registry.register(name=name, fn=fn, namespace=namespace, metadata=metadata)
-        registered.append(f"{namespace}:{name}")
+        registered.append(f"{namespace}.{name}")
     return registered

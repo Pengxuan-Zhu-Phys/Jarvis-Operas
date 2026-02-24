@@ -65,7 +65,7 @@ def load_user_ops(
                     namespace=target_namespace,
                     metadata={"source": "__JARVIS_OPERAS__", "path": str(module_path)},
                 )
-                loaded.append(f"{target_namespace}:{op_name}")
+                loaded.append(f"{target_namespace}.{op_name}")
 
         if not loaded:
             raise RuntimeError(
@@ -73,6 +73,9 @@ def load_user_ops(
             )
 
         loaded_sorted = sorted(set(loaded))
+        from .integration import refresh_sympy_dicts_if_global_registry
+
+        refresh_sympy_dicts_if_global_registry(registry)
         local_logger.info(
             "loaded {} operators from {}",
             len(loaded_sorted),
@@ -115,7 +118,7 @@ def discover_entrypoints(
                             namespace=namespace,
                             metadata=metadata,
                         )
-                        loaded.append(f"{namespace}:{op_name}")
+                        loaded.append(f"{namespace}.{op_name}")
                 elif callable(target):
                     registry.register(
                         name=ep.name,
@@ -123,7 +126,7 @@ def discover_entrypoints(
                         namespace=namespace,
                         metadata=metadata,
                     )
-                    loaded.append(f"{namespace}:{ep.name}")
+                    loaded.append(f"{namespace}.{ep.name}")
                 else:
                     raise TypeError(
                         f"Entry point '{ep.name}' in group '{group}' must load a callable "

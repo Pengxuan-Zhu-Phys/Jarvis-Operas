@@ -24,10 +24,12 @@ def eggbox(observables=None, logger=None):
 
     x = _to_numeric_array_like(observables["x"])
     y = _to_numeric_array_like(observables["y"])
+    if logger is not None: 
+        logger.info("Eggbox 2D function input loaded: \n\t x -> {}, y -> {}".format(x, y))
     z = (np.sin(np.pi * x) * np.cos(np.pi * y) + 2.0) ** 5
 
     if logger is not None:
-        logger.debug("Jarvis-Operas -> EggBox 2D function called.")
+        logger.debug("Jarvis-Operas -> EggBox 2D function called: \n\t z -> {}".format(z))
 
     if _is_numpy_scalar(z):
         return float(z)

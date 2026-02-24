@@ -16,6 +16,8 @@ from .logging import get_logger
 _ID_MIN_NUMBER = 100
 _ID_MAX_NUMBER = 99999
 _ID_SPACE_SIZE = _ID_MAX_NUMBER - _ID_MIN_NUMBER + 1
+_FULL_NAME_SEPARATOR = "."
+_LEGACY_FULL_NAME_SEPARATOR = ":"
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,10 @@ def _normalize_namespace(namespace: str) -> str:
     normalized = namespace.strip()
     if not normalized:
         raise ValueError("namespace cannot be empty")
+    if _FULL_NAME_SEPARATOR in normalized:
+        raise ValueError(f"namespace cannot contain '{_FULL_NAME_SEPARATOR}'")
+    if _LEGACY_FULL_NAME_SEPARATOR in normalized:
+        raise ValueError(f"namespace cannot contain '{_LEGACY_FULL_NAME_SEPARATOR}'")
     return normalized
 
 
@@ -43,19 +49,45 @@ def _normalize_name(name: str) -> str:
     normalized = name.strip()
     if not normalized:
         raise ValueError("operator name cannot be empty")
-    if ":" in normalized:
-        raise ValueError("operator name cannot contain ':'")
+    if _FULL_NAME_SEPARATOR in normalized:
+        raise ValueError(f"operator name cannot contain '{_FULL_NAME_SEPARATOR}'")
+    if _LEGACY_FULL_NAME_SEPARATOR in normalized:
+        raise ValueError(f"operator name cannot contain '{_LEGACY_FULL_NAME_SEPARATOR}'")
     return normalized
 
 
 def _normalize_full_name(full_name: str) -> tuple[str, str, str]:
     normalized = full_name.strip()
-    if ":" not in normalized:
-        raise ValueError("full_name must be in '<namespace>:<name>' format")
-    namespace, name = normalized.split(":", 1)
+    namespace, name = _split_full_name(normalized)
     normalized_namespace = _normalize_namespace(namespace)
     normalized_name = _normalize_name(name)
-    return normalized_namespace, normalized_name, f"{normalized_namespace}:{normalized_name}"
+    return (
+        normalized_namespace,
+        normalized_name,
+        f"{normalized_namespace}{_FULL_NAME_SEPARATOR}{normalized_name}",
+    )
+
+
+def _split_full_name(value: str) -> tuple[str, str]:
+    has_new = _FULL_NAME_SEPARATOR in value
+    has_legacy = _LEGACY_FULL_NAME_SEPARATOR in value
+    if has_new and has_legacy:
+        raise ValueError(
+            "full_name cannot mix '.' and ':' separators; use '<namespace>.<name>'"
+        )
+    if has_new:
+        return value.split(_FULL_NAME_SEPARATOR, 1)
+    if has_legacy:
+        return value.split(_LEGACY_FULL_NAME_SEPARATOR, 1)
+    raise ValueError("full_name must be in '<namespace>.<name>' format")
+
+
+def _canonicalize_full_name_candidate(identifier: str) -> str | None:
+    try:
+        _, _, canonical = _normalize_full_name(identifier)
+    except ValueError:
+        return None
+    return canonical
 
 
 def _derive_call_traits(fn: Callable[..., Any]) -> tuple[str, bool, bool]:
@@ -115,7 +147,7 @@ class OperatorRegistry:
 
         normalized_namespace = _normalize_namespace(namespace)
         normalized_name = _normalize_name(name)
-        full_name = f"{normalized_namespace}:{normalized_name}"
+        full_name = f"{normalized_namespace}{_FULL_NAME_SEPARATOR}{normalized_name}"
         resolved_metadata = dict(metadata or {})
         if normalized_namespace == "helper":
             # Helper operators are expected to be concurrency-friendly by default.
@@ -161,7 +193,8 @@ class OperatorRegistry:
             return self._resolve_name_locked(normalized)
 
     def get(self, full_name: str) -> Callable[..., Any]:
-        return self._get_record(full_name).fn
+        resolved_full_name = self.resolve_name(full_name)
+        return self._get_record(resolved_full_name).fn
 
     def delete(self, full_name: str, logger: Any | None = None) -> None:
         normalized_full = self.resolve_name(full_name)
@@ -201,7 +234,7 @@ class OperatorRegistry:
                 else source_namespace
             )
             target_name = _normalize_name(new_name) if new_name is not None else source_name
-            target_full = f"{target_namespace}:{target_name}"
+            target_full = f"{target_namespace}{_FULL_NAME_SEPARATOR}{target_name}"
 
         if target_full == source_full:
             return source_full
@@ -237,7 +270,7 @@ class OperatorRegistry:
 
     def delete_namespace(self, namespace: str, logger: Any | None = None) -> list[str]:
         normalized_namespace = _normalize_namespace(namespace)
-        prefix = f"{normalized_namespace}:"
+        prefix = f"{normalized_namespace}{_FULL_NAME_SEPARATOR}"
 
         with self._lock:
             deleted = [name for name in self._operators if name.startswith(prefix)]
@@ -266,7 +299,7 @@ class OperatorRegistry:
         if source_namespace == target_namespace:
             return []
 
-        source_prefix = f"{source_namespace}:"
+        source_prefix = f"{source_namespace}{_FULL_NAME_SEPARATOR}"
 
         with self._lock:
             source_names = [
@@ -275,7 +308,7 @@ class OperatorRegistry:
             rename_pairs = []
             for source_full in source_names:
                 record = self._operators[source_full]
-                target_full = f"{target_namespace}:{record.name}"
+                target_full = f"{target_namespace}{_FULL_NAME_SEPARATOR}{record.name}"
                 rename_pairs.append((source_full, target_full))
 
             for source_full, target_full in rename_pairs:
@@ -414,7 +447,7 @@ class OperatorRegistry:
 
         normalized_name = _normalize_name(name)
         return await self.acall_many(
-            f"helper:{normalized_name}",
+            f"helper{_FULL_NAME_SEPARATOR}{normalized_name}",
             calls,
             logger=logger,
             concurrency=concurrency,
@@ -429,7 +462,7 @@ class OperatorRegistry:
             return names
 
         normalized_namespace = _normalize_namespace(namespace)
-        prefix = f"{normalized_namespace}:"
+        prefix = f"{normalized_namespace}{_FULL_NAME_SEPARATOR}"
         return [name for name in names if name.startswith(prefix)]
 
     def info(self, full_name: str) -> dict[str, Any]:
@@ -473,6 +506,10 @@ class OperatorRegistry:
     def _resolve_name_locked(self, identifier: str) -> str:
         if identifier in self._operators:
             return identifier
+
+        canonical = _canonicalize_full_name_candidate(identifier)
+        if canonical is not None and canonical in self._operators:
+            return canonical
 
         by_id = self._id_to_name.get(identifier)
         if by_id is not None and by_id in self._operators:

@@ -16,6 +16,12 @@ from .errors import (
     OperatorLoadError,
     OperatorNotFound,
 )
+from .integration import (
+    build_register_dicts,
+    build_sympy_dicts,
+    func_locals,
+    numeric_funcs,
+)
 from .loading import discover_entrypoints, load_user_ops
 from .logging import configure_cli_logger, get_log_mode, get_logger, set_log_mode
 from .persistence import (
@@ -38,6 +44,8 @@ __all__ = [
     "OperatorConflict",
     "OperatorLoadError",
     "OperatorCallError",
+    "build_register_dicts",
+    "build_sympy_dicts",
     "get_logger",
     "set_log_mode",
     "get_log_mode",
@@ -60,6 +68,8 @@ __all__ = [
     "interpolation_manifest_resource",
     "load_hot_curve_function_table",
     "load_interpolation_manifest_library",
+    "func_locals",
+    "numeric_funcs",
     "register_hot_curves",
     "register_hot_curves_in_registry",
 ]

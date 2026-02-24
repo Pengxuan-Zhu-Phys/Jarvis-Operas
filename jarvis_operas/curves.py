@@ -39,6 +39,11 @@ class Curve1DInterpolator:
     extrapolation: str = "extrapolate"
     metadata: dict[str, Any] | None = None
     _interp: Any = field(init=False, repr=False)
+    _extrapolation_mode: str = field(init=False, repr=False)
+    _x_min: float = field(init=False, repr=False)
+    _x_max: float = field(init=False, repr=False)
+    _scalar_eval: Callable[[float], float] = field(init=False, repr=False)
+    _vector_eval: Callable[[np.ndarray], np.ndarray] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         x_values = np.asarray(self.x_values, dtype=float)
@@ -66,23 +71,35 @@ class Curve1DInterpolator:
         if self.metadata is None:
             object.__setattr__(self, "metadata", {})
 
+        self._extrapolation_mode = self._normalize_extrapolation_mode()
         self._interp = self._build_interp()
+        self._bind_fast_paths()
+
+    @staticmethod
+    def _to_float(value: Any) -> float:
+        if isinstance(value, np.ndarray):
+            return float(value.item())
+        return float(value)
+
+    def _normalize_extrapolation_mode(self) -> str:
+        extrapolation = self.extrapolation.strip().lower()
+        if extrapolation not in ("extrapolate", "clip", "error"):
+            raise ValueError(
+                f"curve '{self.curve_id}' has invalid extrapolation policy: {self.extrapolation}"
+            )
+        return extrapolation
 
     def _build_interp(self):
         src_x = np.log(self.x_values) if self.log_x else self.x_values
         src_y = np.log(self.y_values) if self.log_y else self.y_values
 
-        extrapolation = self.extrapolation.strip().lower()
+        extrapolation = self._extrapolation_mode
         if extrapolation == "extrapolate":
             kwargs = {"bounds_error": False, "fill_value": "extrapolate"}
         elif extrapolation == "clip":
             kwargs = {"bounds_error": False, "fill_value": (src_y[0], src_y[-1])}
-        elif extrapolation == "error":
-            kwargs = {"bounds_error": True}
         else:
-            raise ValueError(
-                f"curve '{self.curve_id}' has invalid extrapolation policy: {self.extrapolation}"
-            )
+            kwargs = {"bounds_error": True}
 
         return interp1d(
             src_x,
@@ -92,27 +109,179 @@ class Curve1DInterpolator:
             **kwargs,
         )
 
-    def __call__(self, x: float | np.ndarray | list[float]) -> float | np.ndarray:
-        is_scalar_input = np.isscalar(x)
-        values = np.asarray(x, dtype=float)
+    def _bind_fast_paths(self) -> None:
+        self._x_min = float(self.x_values[0])
+        self._x_max = float(self.x_values[-1])
+        self._scalar_eval = self._build_scalar_eval()
+        self._vector_eval = self._build_vector_eval()
 
-        eval_x = values
-        if self.extrapolation.strip().lower() == "clip":
-            eval_x = np.clip(eval_x, self.x_values[0], self.x_values[-1])
+    def _build_scalar_eval(self) -> Callable[[float], float]:
+        interp = self._interp
+        clip_mode = self._extrapolation_mode == "clip"
+        x_min = self._x_min
+        x_max = self._x_max
+        curve_id = self.curve_id
+        to_float = self._to_float
 
         if self.log_x:
-            if np.any(eval_x <= 0):
-                raise ValueError(f"curve '{self.curve_id}' received non-positive x under logX")
-            eval_x = np.log(eval_x)
+            if self.log_y:
+                if clip_mode:
 
-        result = self._interp(eval_x)
+                    def scalar_eval(value: float) -> float:
+                        eval_x = value
+                        if eval_x < x_min:
+                            eval_x = x_min
+                        elif eval_x > x_max:
+                            eval_x = x_max
+                        if eval_x <= 0:
+                            raise ValueError(
+                                f"curve '{curve_id}' received non-positive x under logX"
+                            )
+                        return to_float(np.exp(interp(np.log(eval_x))))
+
+                    return scalar_eval
+
+                def scalar_eval(value: float) -> float:
+                    if value <= 0:
+                        raise ValueError(f"curve '{curve_id}' received non-positive x under logX")
+                    return to_float(np.exp(interp(np.log(value))))
+
+                return scalar_eval
+
+            if clip_mode:
+
+                def scalar_eval(value: float) -> float:
+                    eval_x = value
+                    if eval_x < x_min:
+                        eval_x = x_min
+                    elif eval_x > x_max:
+                        eval_x = x_max
+                    if eval_x <= 0:
+                        raise ValueError(
+                            f"curve '{curve_id}' received non-positive x under logX"
+                        )
+                    return to_float(interp(np.log(eval_x)))
+
+                return scalar_eval
+
+            def scalar_eval(value: float) -> float:
+                if value <= 0:
+                    raise ValueError(f"curve '{curve_id}' received non-positive x under logX")
+                return to_float(interp(np.log(value)))
+
+            return scalar_eval
+
         if self.log_y:
-            result = np.exp(result)
+            if clip_mode:
 
-        result = np.asarray(result)
-        if is_scalar_input:
-            return float(result.item())
-        return result
+                def scalar_eval(value: float) -> float:
+                    eval_x = value
+                    if eval_x < x_min:
+                        eval_x = x_min
+                    elif eval_x > x_max:
+                        eval_x = x_max
+                    return to_float(np.exp(interp(eval_x)))
+
+                return scalar_eval
+
+            def scalar_eval(value: float) -> float:
+                return to_float(np.exp(interp(value)))
+
+            return scalar_eval
+
+        if clip_mode:
+
+            def scalar_eval(value: float) -> float:
+                eval_x = value
+                if eval_x < x_min:
+                    eval_x = x_min
+                elif eval_x > x_max:
+                    eval_x = x_max
+                return to_float(interp(eval_x))
+
+            return scalar_eval
+
+        def scalar_eval(value: float) -> float:
+            return to_float(interp(value))
+
+        return scalar_eval
+
+    def _build_vector_eval(self) -> Callable[[np.ndarray], np.ndarray]:
+        interp = self._interp
+        clip_mode = self._extrapolation_mode == "clip"
+        x_min = self._x_min
+        x_max = self._x_max
+        curve_id = self.curve_id
+
+        if self.log_x:
+            if self.log_y:
+                if clip_mode:
+
+                    def vector_eval(values: np.ndarray) -> np.ndarray:
+                        eval_x = np.clip(values, x_min, x_max)
+                        if np.any(eval_x <= 0):
+                            raise ValueError(
+                                f"curve '{curve_id}' received non-positive x under logX"
+                            )
+                        return np.exp(np.asarray(interp(np.log(eval_x))))
+
+                    return vector_eval
+
+                def vector_eval(values: np.ndarray) -> np.ndarray:
+                    if np.any(values <= 0):
+                        raise ValueError(f"curve '{curve_id}' received non-positive x under logX")
+                    return np.exp(np.asarray(interp(np.log(values))))
+
+                return vector_eval
+
+            if clip_mode:
+
+                def vector_eval(values: np.ndarray) -> np.ndarray:
+                    eval_x = np.clip(values, x_min, x_max)
+                    if np.any(eval_x <= 0):
+                        raise ValueError(
+                            f"curve '{curve_id}' received non-positive x under logX"
+                        )
+                    return np.asarray(interp(np.log(eval_x)))
+
+                return vector_eval
+
+            def vector_eval(values: np.ndarray) -> np.ndarray:
+                if np.any(values <= 0):
+                    raise ValueError(f"curve '{curve_id}' received non-positive x under logX")
+                return np.asarray(interp(np.log(values)))
+
+            return vector_eval
+
+        if self.log_y:
+            if clip_mode:
+
+                def vector_eval(values: np.ndarray) -> np.ndarray:
+                    return np.exp(np.asarray(interp(np.clip(values, x_min, x_max))))
+
+                return vector_eval
+
+            def vector_eval(values: np.ndarray) -> np.ndarray:
+                return np.exp(np.asarray(interp(values)))
+
+            return vector_eval
+
+        if clip_mode:
+
+            def vector_eval(values: np.ndarray) -> np.ndarray:
+                return np.asarray(interp(np.clip(values, x_min, x_max)))
+
+            return vector_eval
+
+        def vector_eval(values: np.ndarray) -> np.ndarray:
+            return np.asarray(interp(values))
+
+        return vector_eval
+
+    def __call__(self, x: float | np.ndarray | list[float]) -> float | np.ndarray:
+        if np.isscalar(x):
+            return self._scalar_eval(float(x))
+        return self._vector_eval(np.asarray(x, dtype=float))
 
     def __getstate__(self) -> dict[str, Any]:
         return {
@@ -135,7 +304,9 @@ class Curve1DInterpolator:
         self.log_y = bool(state.get("log_y", False))
         self.extrapolation = str(state.get("extrapolation", "extrapolate"))
         self.metadata = dict(state.get("metadata", {}))
+        self._extrapolation_mode = self._normalize_extrapolation_mode()
         self._interp = self._build_interp()
+        self._bind_fast_paths()
 
 
 def get_curve_cache_root(cache_root: str | None = None) -> Path:
@@ -420,12 +591,14 @@ def register_hot_curves_in_registry(
             metadata.update(dict(curve_entry.get("metadata", {})))
         metadata["group"] = target_namespace
 
-        full_name = f"{target_namespace}:{curve_id}"
+        full_name = f"{target_namespace}.{curve_id}"
         if overwrite:
             for existing_name in registry.list():
-                if ":" not in existing_name:
+                split = _split_full_name(existing_name)
+                if split is None:
                     continue
-                if existing_name.split(":", 1)[1] != curve_id:
+                _, existing_curve_id = split
+                if existing_curve_id != curve_id:
                     continue
                 try:
                     registry.delete(existing_name)
@@ -449,6 +622,9 @@ def register_hot_curves_in_registry(
         "registered {} interpolation operators",
         len(registered),
     )
+    from .integration import refresh_sympy_dicts_if_global_registry
+
+    refresh_sympy_dicts_if_global_registry(registry)
     return sorted(registered)
 
 
@@ -535,6 +711,8 @@ def _normalize_optional_namespace(value: Any, *, field_name: str) -> str | None:
         return None
     if ":" in normalized:
         raise ValueError(f"{field_name} cannot contain ':'")
+    if "." in normalized:
+        raise ValueError(f"{field_name} cannot contain '.'")
     return normalized
 
 
@@ -542,9 +720,22 @@ def _coerce_optional_namespace(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
     normalized = value.strip()
-    if not normalized or ":" in normalized:
+    if not normalized or ":" in normalized or "." in normalized:
         return None
     return normalized
+
+
+def _split_full_name(full_name: str) -> tuple[str, str] | None:
+    normalized = full_name.strip()
+    if not normalized:
+        return None
+    if "." in normalized and ":" in normalized:
+        return None
+    if "." in normalized:
+        return normalized.split(".", 1)
+    if ":" in normalized:
+        return normalized.split(":", 1)
+    return None
 
 
 def _resolve_curve_namespace(

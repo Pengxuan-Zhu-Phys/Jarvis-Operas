@@ -43,7 +43,7 @@ def test_global_registry_autoloads_persisted_user_ops(tmp_path, monkeypatch) -> 
     monkeypatch.setattr(api, "_global_registry", None)
     registry = api.get_global_registry()
 
-    assert registry.call("auto_ops:square", x=4) == 16
+    assert registry.call("auto_ops.square", x=4) == 16
 
 
 def test_persisted_function_delete_and_update_overrides(tmp_path, monkeypatch) -> None:
@@ -65,19 +65,19 @@ def test_persisted_function_delete_and_update_overrides(tmp_path, monkeypatch) -
     monkeypatch.setenv("JARVIS_OPERAS_PERSIST_FILE", str(store_path))
 
     persist_user_ops(str(op_file))
-    update_persisted_function("func_ops:inc", "math:inc_user")
-    delete_persisted_function("math:add")
+    update_persisted_function("func_ops.inc", "math.inc_user")
+    delete_persisted_function("math.add")
 
     import jarvis_operas.api as api
 
     monkeypatch.setattr(api, "_global_registry", None)
     registry = api.get_global_registry()
 
-    assert registry.call("math:inc_user", x=2) == 3
+    assert registry.call("math.inc_user", x=2) == 3
     with pytest.raises(OperatorNotFound):
-        registry.get("func_ops:inc")
+        registry.get("func_ops.inc")
     with pytest.raises(OperatorNotFound):
-        registry.get("math:add")
+        registry.get("math.add")
 
 
 def test_persisted_namespace_delete_and_update_overrides(tmp_path, monkeypatch) -> None:
@@ -105,11 +105,11 @@ def test_persisted_namespace_delete_and_update_overrides(tmp_path, monkeypatch) 
 
     monkeypatch.setattr(api, "_global_registry", None)
     registry = api.get_global_registry()
-    assert registry.call("my_ns:foo", x=7) == 7
+    assert registry.call("my_ns.foo", x=7) == 7
 
     delete_persisted_namespace("my_ns")
     monkeypatch.setattr(api, "_global_registry", None)
     registry = api.get_global_registry()
 
     with pytest.raises(OperatorNotFound):
-        registry.get("my_ns:foo")
+        registry.get("my_ns.foo")

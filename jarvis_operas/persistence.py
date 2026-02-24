@@ -13,6 +13,8 @@ from .registry import OperatorRegistry
 
 _STORE_LOCK = RLock()
 _ENV_STORE_PATH = "JARVIS_OPERAS_PERSIST_FILE"
+_FULL_NAME_SEPARATOR = "."
+_LEGACY_FULL_NAME_SEPARATOR = ":"
 
 
 def get_persist_store_path() -> Path:
@@ -225,12 +227,15 @@ def clear_persisted_namespace_overrides(
             if source != normalized and target != normalized
         }
         overrides["deleted_functions"] = [
-            item for item in deleted_functions if item.split(":", 1)[0] != normalized
+            item
+            for item in deleted_functions
+            if (_split_full_name(item) or ("", ""))[0] != normalized
         ]
         overrides["renamed_functions"] = {
             source: target
             for source, target in renamed_functions.items()
-            if source.split(":", 1)[0] != normalized and target.split(":", 1)[0] != normalized
+            if (_split_full_name(source) or ("", ""))[0] != normalized
+            and (_split_full_name(target) or ("", ""))[0] != normalized
         }
         _write_store(store_path, store)
 
@@ -438,22 +443,26 @@ def _empty_store() -> dict[str, Any]:
 
 def _normalize_full_name(full_name: str) -> str:
     normalized = full_name.strip()
-    if ":" not in normalized:
-        raise ValueError("full_name must be in '<namespace>:<name>' format")
-    namespace, name = normalized.split(":", 1)
+    namespace, name = _split_full_name(normalized)
     namespace = _normalize_namespace(namespace)
     name = name.strip()
     if not name:
         raise ValueError("operator name cannot be empty")
-    if ":" in name:
-        raise ValueError("operator name cannot contain ':'")
-    return f"{namespace}:{name}"
+    if _FULL_NAME_SEPARATOR in name:
+        raise ValueError(f"operator name cannot contain '{_FULL_NAME_SEPARATOR}'")
+    if _LEGACY_FULL_NAME_SEPARATOR in name:
+        raise ValueError(f"operator name cannot contain '{_LEGACY_FULL_NAME_SEPARATOR}'")
+    return f"{namespace}{_FULL_NAME_SEPARATOR}{name}"
 
 
 def _normalize_namespace(namespace: str) -> str:
     normalized = namespace.strip()
     if not normalized:
         raise ValueError("namespace cannot be empty")
+    if _FULL_NAME_SEPARATOR in normalized:
+        raise ValueError(f"namespace cannot contain '{_FULL_NAME_SEPARATOR}'")
+    if _LEGACY_FULL_NAME_SEPARATOR in normalized:
+        raise ValueError(f"namespace cannot contain '{_LEGACY_FULL_NAME_SEPARATOR}'")
     return normalized
 
 
@@ -462,9 +471,23 @@ def _remap_full_name_namespace(
     renamed_namespaces: Mapping[str, str],
 ) -> str:
     normalized = _normalize_full_name(full_name)
-    namespace, short_name = normalized.split(":", 1)
+    namespace, short_name = normalized.split(_FULL_NAME_SEPARATOR, 1)
     mapped_namespace = renamed_namespaces.get(namespace, namespace)
-    return f"{mapped_namespace}:{short_name}"
+    return f"{mapped_namespace}{_FULL_NAME_SEPARATOR}{short_name}"
+
+
+def _split_full_name(value: str) -> tuple[str, str]:
+    has_new = _FULL_NAME_SEPARATOR in value
+    has_legacy = _LEGACY_FULL_NAME_SEPARATOR in value
+    if has_new and has_legacy:
+        raise ValueError(
+            "full_name cannot mix '.' and ':' separators; use '<namespace>.<name>'"
+        )
+    if has_new:
+        return value.split(_FULL_NAME_SEPARATOR, 1)
+    if has_legacy:
+        return value.split(_LEGACY_FULL_NAME_SEPARATOR, 1)
+    raise ValueError("full_name must be in '<namespace>.<name>' format")
 
 
 def _read_store(path: Path, logger: Any) -> dict[str, Any]:

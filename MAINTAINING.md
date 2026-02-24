@@ -1,10 +1,10 @@
 # Jarvis-Operas Maintainer Guide
 
-This document is for Jarvis-Operas maintainers and defines the workflow for maintaining and releasing built-in operators (for example: `math:*`, `stat:*`, `helper:*`).
+This document is for Jarvis-Operas maintainers and defines the workflow for maintaining and releasing built-in operators (for example: `math.*`, `stat.*`, `helper.*`).
 
 ## 1. Maintenance Goals
 
-- Keep built-in `<namespace>:<name>` identifiers stable to avoid breaking Jarvis-HEP/Jarvis-PLOT name-based references.
+- Keep built-in `<namespace>.<name>` identifiers stable to avoid breaking Jarvis-HEP/Jarvis-PLOT name-based references.
 - Keep the registry API stable: `register/get/call/acall/list/info`.
 - Ensure tests pass before every release and keep user docs updated.
 
@@ -30,7 +30,7 @@ This document is for Jarvis-Operas maintainers and defines the workflow for main
 cd /path/to/Jarvis-Operas
 python -m pytest
 python -m jarvis_operas.cli list --namespace math
-python -m jarvis_operas.cli info <namespace>:<name> --json
+python -m jarvis_operas.cli info <namespace>.<name> --json
 ```
 
 ## 4. Logging Conventions
@@ -50,7 +50,7 @@ CLI:
 
 ```bash
 jopera list --namespace math --log-mode info
-jopera call math:add --kwargs '{"a":1,"b":2}' --log-mode debug
+jopera call math.add --kwargs '{"a":1,"b":2}' --log-mode debug
 ```
 
 ## 5. Pre-release Checklist (Required)
