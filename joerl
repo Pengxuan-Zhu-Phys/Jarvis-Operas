@@ -1,45 +1,45 @@
 #!/usr/bin/env bash
 
-_JOERL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_jorel_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-_joerl_usage() {
+_jorel_usage() {
   cat <<'EOF'
 Usage:
-  joerl <version>
+  jorel <version>
 
 Example:
-  joerl 1.1.1
+  jorel 1.1.1
 EOF
 }
 
-joerl() {
+jorel() {
   (
     set -euo pipefail
 
     if [[ $# -eq 1 && ( "$1" == "-h" || "$1" == "--help" ) ]]; then
-      _joerl_usage
+      _jorel_usage
       exit 0
     fi
 
     if [[ $# -ne 1 ]]; then
-      _joerl_usage
+      _jorel_usage
       exit 1
     fi
 
     local version="$1"
     if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-      echo "[joerl] Invalid version: $version (expected X.Y.Z)" >&2
+      echo "[jorel] Invalid version: $version (expected X.Y.Z)" >&2
       exit 2
     fi
 
-    cd "$_JOERL_DIR"
+    cd "$_jorel_DIR"
 
     if [[ ! -f "pyproject.toml" ]]; then
-      echo "[joerl] pyproject.toml not found in $_JOERL_DIR" >&2
+      echo "[jorel] pyproject.toml not found in $_jorel_DIR" >&2
       exit 2
     fi
 
-    echo "[joerl] Step 1/7: bump version -> $version"
+    echo "[jorel] Step 1/7: bump version -> $version"
     python - <<'PY' "$version"
 from pathlib import Path
 import re
@@ -55,23 +55,23 @@ updated, n = re.subn(
     count=1,
 )
 if n != 1:
-    raise SystemExit("[joerl] Failed to locate version field in pyproject.toml")
+    raise SystemExit("[jorel] Failed to locate version field in pyproject.toml")
 path.write_text(updated, encoding="utf-8")
-print(f"[joerl] pyproject.toml updated to {version}")
+print(f"[jorel] pyproject.toml updated to {version}")
 PY
 
-    echo "[joerl] Step 2/7: clean build artifacts"
+    echo "[jorel] Step 2/7: clean build artifacts"
     rm -rf dist build Jarvis_Operas.egg-info
 
-    echo "[joerl] Step 3/7: build package"
+    echo "[jorel] Step 3/7: build package"
     python -m pip install --disable-pip-version-check -q build twine
     python -m build
     python -m twine check dist/*
 
-    echo "[joerl] Step 4/7: upload to PyPI"
+    echo "[jorel] Step 4/7: upload to PyPI"
     python -m twine upload dist/*
 
-    echo "[joerl] Step 5/7: clean local pip residual metadata"
+    echo "[jorel] Step 5/7: clean local pip residual metadata"
     python - <<'PY'
 from __future__ import annotations
 
@@ -111,34 +111,34 @@ for base in site_paths:
         for path in glob.glob(os.path.join(base, pattern)):
             if os.path.isdir(path):
                 shutil.rmtree(path, ignore_errors=True)
-                print(f"[joerl] removed dir: {path}")
+                print(f"[jorel] removed dir: {path}")
             else:
                 try:
                     os.remove(path)
-                    print(f"[joerl] removed file: {path}")
+                    print(f"[jorel] removed file: {path}")
                 except FileNotFoundError:
                     pass
 PY
 
-    echo "[joerl] Step 6/7: reinstall from PyPI -> Jarvis-Operas==$version"
+    echo "[jorel] Step 6/7: reinstall from PyPI -> Jarvis-Operas==$version"
     python -m pip install --no-cache-dir --force-reinstall --no-deps "Jarvis-Operas==$version"
 
-    echo "[joerl] Step 7/7: verify local install"
+    echo "[jorel] Step 7/7: verify local install"
     python - <<'PY'
 import importlib.metadata as m
 import jarvis_operas
 
-print("[joerl] installed version:", m.version("Jarvis-Operas"))
-print("[joerl] imported from:", jarvis_operas.__file__)
+print("[jorel] installed version:", m.version("Jarvis-Operas"))
+print("[jorel] imported from:", jarvis_operas.__file__)
 PY
     python -m pip show Jarvis-Operas | sed -n '1,40p'
 
-    echo "[joerl] Done."
+    echo "[jorel] Done."
   )
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  echo "This file defines the 'joerl' bash function. Please source it first:" >&2
+  echo "This file defines the 'jorel' bash function. Please source it first:" >&2
   echo "  source \"$0\"" >&2
   exit 1
 fi
