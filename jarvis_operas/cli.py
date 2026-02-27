@@ -6,24 +6,38 @@ import difflib
 import json
 import sys
 import textwrap
-from importlib import resources
 from importlib.metadata import PackageNotFoundError, version as dist_version
 from typing import Any
 
-from . import get_global_registry, load_user_ops
-from .curves import init_curve_cache, register_hot_curves_in_registry
+from .api import get_global_operas_registry
+from .core.registry import OperasRegistry
+from .core.spec import OperaFunction
+from .curves import (
+    add_interpolation_namespace,
+    init_builtin_curve_cache,
+    init_curve_cache,
+    list_interpolation_namespace_entries,
+    register_hot_curves_in_registry,
+    remove_interpolation_namespace,
+    validate_interpolation_namespace_index,
+)
 from .errors import OperatorNotFound
 from .integration import refresh_sympy_dicts_if_global_registry
+from .loading import load_user_ops
 from .logging import configure_cli_logger
+from .mutation_policy import ensure_cli_write_allowed
+from .name_utils import try_split_full_name
+from .namespace_policy import ensure_user_namespace_allowed, is_protected_namespace
 from .persistence import (
     apply_persisted_overrides,
     clear_persisted_function_overrides,
     clear_persisted_namespace_overrides,
     delete_persisted_function,
     delete_persisted_namespace,
+    get_overrides_store_path,
+    get_sources_store_path,
     persist_user_ops,
 )
-from .registry import OperatorRegistry
 
 _LOG_MODE_CHOICES = ("warning", "info", "debug")
 
@@ -64,7 +78,7 @@ def _root_card() -> str:
 
         Namespaces:
           math.*    numeric helpers
-          stat.*    statistics operators
+          stat.*    statistics functions
           helper.*  HEP scan helpers
 
         Use 'jopera --help' for full options, 'jopera help examples' for copy-paste examples.
@@ -82,12 +96,11 @@ def _examples_card() -> str:
           jopera list --namespace helper
           jopera info stat.chi2_cov
           jopera call math.add --kwargs '{"a":1,"b":2}'
-          jopera call helper.eggbox --kwargs '{"inputs":{"x":0.5,"y":0.0}}'
+          jopera call helper.eggbox --kwargs '{"x":0.5,"y":0.0}'
           jopera load ./my_ops.py
           jopera call my_ops.my_func --arg x=1 --arg y=2
-          jopera update ./my_ops.py
-          jopera update ./my_ops.py --function my_func
-          jopera delete-namespace my_ops
+          jopera interp list
+          jopera interp validate
         """
     ).strip()
 
@@ -102,27 +115,18 @@ def _advanced_card() -> str:
           --session-only      (delete/update commands) do not persist override rules
           --arg key=value     Append call kwargs (JSON-decoded when possible)
           --kwargs JSON       Provide call kwargs as JSON object
+          --backend BACKEND   call/acall backend: numpy|polars (default: numpy)
           --log-mode MODE     warning|info|debug
           --json              Machine-readable output for supported commands
           init --force        Rebuild all curve cache pickle artifacts
+          init --namespaces   Comma list of interpolation namespaces (e.g. dmdd,interp1)
+          write policy        User write path is only 'jopera load'
+          developer mode      Set JARVIS_OPERAS_DEV_WRITE=1 to enable developer write commands
 
         Example:
           jopera call my_ops.my_func --user-ops ./my_ops.py --arg x=1 --arg y=2 --log-mode debug
         """
     ).strip()
-
-
-def _split_full_name(full_name: str) -> tuple[str, str] | None:
-    normalized = full_name.strip()
-    if not normalized:
-        return None
-    if "." in normalized and ":" in normalized:
-        return None
-    if "." in normalized:
-        return normalized.split(".", 1)
-    if ":" in normalized:
-        return normalized.split(":", 1)
-    return None
 
 
 def _parse_kv_arg(raw: str) -> tuple[str, Any]:
@@ -141,6 +145,13 @@ def _parse_kv_arg(raw: str) -> tuple[str, Any]:
         value = raw_value
 
     return key, value
+
+
+def _parse_csv_namespaces(raw: str | None) -> list[str] | None:
+    if raw is None:
+        return None
+    names = [item.strip() for item in raw.split(",") if item.strip()]
+    return names or None
 
 
 def _merge_kwargs(raw_json: str | None, key_values: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -180,29 +191,34 @@ def _build_list_entries(registry, names: list[str]) -> list[dict[str, Any]]:
                 "namespace": info["namespace"],
             }
         )
-    return entries
+    return sorted(
+        entries,
+        key=lambda item: (
+            str(item.get("namespace", "")).lower(),
+            str(item.get("name", "")).lower(),
+        ),
+    )
 
 
 def _group_entries_by_namespace(
     entries: list[dict[str, Any]],
 ) -> list[tuple[str, list[dict[str, Any]]]]:
     grouped: dict[str, list[dict[str, Any]]] = {}
-    order: list[str] = []
     for entry in entries:
         namespace = entry["namespace"]
         if namespace not in grouped:
             grouped[namespace] = []
-            order.append(namespace)
         grouped[namespace].append(entry)
-    return [(namespace, grouped[namespace]) for namespace in order]
+    ordered_namespaces = sorted(grouped.keys(), key=lambda item: item.lower())
+    return [(namespace, grouped[namespace]) for namespace in ordered_namespaces]
 
 
 def _print_list_human(entries: list[dict[str, Any]], namespace_filter: str | None) -> None:
     if not entries:
         if namespace_filter:
-            print(f"No operators found in namespace '{namespace_filter}'.")
+            print(f"No functions found in namespace '{namespace_filter}'.")
         else:
-            print("No operators found.")
+            print("No functions found.")
         return
 
     lines: list[str] = []
@@ -217,14 +233,55 @@ def _print_list_human(entries: list[dict[str, Any]], namespace_filter: str | Non
     print("\n".join(lines))
 
 
-def _suggest_next_info_command(full_name: str, namespace: str) -> str:
-    if full_name == "helper.eggbox":
-        return "jopera call helper.eggbox --kwargs '{\"inputs\":{\"x\":0.5,\"y\":0.0}}'"
-    if full_name == "math.add":
-        return "jopera call math.add --kwargs '{\"a\":1,\"b\":2}'"
-    if namespace == "helper":
-        return f"jopera call {full_name} --kwargs '{{\"inputs\":{{\"x\":0.5,\"y\":0.0}}}}'"
-    return f"jopera call {full_name} --kwargs '{{}}'"
+def _print_interp_list_human(
+    entries: list[dict[str, Any]],
+    manifest_path: str,
+) -> None:
+    if not entries:
+        print(f"No interpolation namespaces found in: {manifest_path}")
+        return
+
+    lines = [
+        f"Interpolation namespaces ({len(entries)})",
+        f"Manifest:\t{manifest_path}",
+        "",
+    ]
+    for entry in entries:
+        line = f"- {entry['namespace']}\t{entry['manifest']}"
+        description = entry.get("description")
+        if isinstance(description, str) and description.strip():
+            line = f"{line}\t# {description.strip()}"
+        lines.append(line)
+    print("\n".join(lines))
+
+
+def _extract_cli_example(metadata: Any) -> str | None:
+    if not isinstance(metadata, dict):
+        return None
+    examples = metadata.get("examples")
+    if isinstance(examples, list):
+        for item in examples:
+            if isinstance(item, str) and item.strip():
+                return item.strip()
+            if isinstance(item, dict):
+                cli = item.get("cli")
+                if isinstance(cli, str) and cli.strip():
+                    return cli.strip()
+    if isinstance(examples, dict):
+        cli = examples.get("cli")
+        if isinstance(cli, str) and cli.strip():
+            return cli.strip()
+    return None
+
+
+def _is_user_loaded_function(info: dict[str, Any]) -> bool:
+    namespace = info.get("namespace")
+    if not isinstance(namespace, str) or not namespace.strip():
+        return False
+    try:
+        return not is_protected_namespace(namespace)
+    except Exception:
+        return False
 
 
 def _print_info_human(info: dict[str, Any]) -> None:
@@ -246,22 +303,25 @@ def _print_info_human(info: dict[str, Any]) -> None:
         lines.append(f"Summary:\t{doc}")
     if isinstance(note, str) and note.strip():
         lines.append(f"Note:\t{note.strip()}")
-    lines.append("")
-    lines.append("Try next:")
-    lines.append(
-        f"\t{_suggest_next_info_command(info.get('name', ''), info.get('namespace', ''))}"
-    )
+    if _is_user_loaded_function(info):
+        lines.append(f"UserSources:\t{get_sources_store_path()}")
+        lines.append(f"UserOverrides:\t{get_overrides_store_path()}")
+    suggested = _extract_cli_example(metadata)
+    if isinstance(suggested, str) and suggested.strip():
+        lines.append("")
+        lines.append("Try next:")
+        lines.append(f"\t{suggested.strip()}")
     print("\n".join(lines))
 
 
 def _print_not_found_error(full_name: str, names: list[str]) -> None:
     suggestions = difflib.get_close_matches(full_name, names, n=3, cutoff=0.25)
-    print(f"Operator '{full_name}' not found.", file=sys.stderr)
+    print(f"Function '{full_name}' not found.", file=sys.stderr)
     if suggestions:
         print("Did you mean:", file=sys.stderr)
         for item in suggestions:
             print(f"  - {item}", file=sys.stderr)
-    split = _split_full_name(full_name)
+    split = try_split_full_name(full_name)
     if split is not None:
         namespace, _ = split
         print("Try:", file=sys.stderr)
@@ -272,11 +332,11 @@ def _print_not_found_error(full_name: str, names: list[str]) -> None:
 
 
 def _load_sources(user_ops: list[str]) -> list[str]:
-    registry = get_global_registry()
+    registry = get_global_operas_registry()
     loaded: list[str] = []
 
     for path in user_ops:
-        loaded.extend(load_user_ops(path, registry))
+        loaded.extend(load_user_ops(path, registry, refresh_sympy=False))
 
     if user_ops:
         apply_persisted_overrides(registry)
@@ -285,9 +345,26 @@ def _load_sources(user_ops: list[str]) -> list[str]:
     return sorted(set(loaded))
 
 
+def _registry_with_user_sources(user_ops: list[str]) -> OperasRegistry:
+    _load_sources(user_ops)
+    return get_global_operas_registry()
+
+
+def _ensure_optional_user_namespace(namespace: str | None, *, action: str) -> None:
+    if namespace is None:
+        return
+    ensure_user_namespace_allowed(
+        namespace,
+        action=action,
+    )
+
+
+def _refresh_global_registry_views(registry: OperasRegistry) -> None:
+    refresh_sympy_dicts_if_global_registry(registry)
+
+
 def _cmd_list(args: argparse.Namespace) -> int:
-    _load_sources(args.user_ops)
-    registry = get_global_registry()
+    registry = _registry_with_user_sources(args.user_ops)
     names = registry.list(namespace=args.namespace)
     entries = _build_list_entries(registry, names)
     if args.json:
@@ -298,9 +375,14 @@ def _cmd_list(args: argparse.Namespace) -> int:
 
 
 def _cmd_info(args: argparse.Namespace) -> int:
-    _load_sources(args.user_ops)
-    registry = get_global_registry()
+    registry = _registry_with_user_sources(args.user_ops)
     info = registry.info(args.target)
+    if args.json and _is_user_loaded_function(info):
+        info = dict(info)
+        info["user_store"] = {
+            "sources_path": str(get_sources_store_path()),
+            "overrides_path": str(get_overrides_store_path()),
+        }
     if args.json:
         _print_value(info, as_json=True)
     else:
@@ -308,60 +390,84 @@ def _cmd_info(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_call(args: argparse.Namespace) -> int:
-    _load_sources(args.user_ops)
-    registry = get_global_registry()
+def _cmd_call_common(args: argparse.Namespace, *, async_mode: bool) -> int:
+    registry = _registry_with_user_sources(args.user_ops)
     kwargs = _merge_kwargs(args.kwargs, args.arg)
 
-    result = registry.call(args.full_name, **kwargs)
+    if async_mode:
+        result = asyncio.run(registry.acall(args.full_name, backend=args.backend, **kwargs))
+    else:
+        result = registry.call(args.full_name, backend=args.backend, **kwargs)
     _print_value(result, as_json=args.json)
     return 0
+
+
+def _cmd_call(args: argparse.Namespace) -> int:
+    return _cmd_call_common(args, async_mode=False)
 
 
 def _cmd_acall(args: argparse.Namespace) -> int:
-    _load_sources(args.user_ops)
-    registry = get_global_registry()
-    kwargs = _merge_kwargs(args.kwargs, args.arg)
-
-    result = asyncio.run(registry.acall(args.full_name, **kwargs))
-    _print_value(result, as_json=args.json)
-    return 0
+    return _cmd_call_common(args, async_mode=True)
 
 
 def _cmd_load(args: argparse.Namespace) -> int:
-    registry = get_global_registry()
-    loaded = load_user_ops(args.path, registry, namespace=args.namespace)
+    registry = get_global_operas_registry()
+    _ensure_optional_user_namespace(
+        args.namespace,
+        action="CLI load namespace override",
+    )
+    loaded = load_user_ops(
+        args.path,
+        registry,
+        namespace=args.namespace,
+        refresh_sympy=False,
+    )
     if not args.session_only:
         persist_user_ops(args.path, namespace=args.namespace)
-    refresh_sympy_dicts_if_global_registry(registry)
+    _refresh_global_registry_views(registry)
     _print_value(loaded, as_json=True)
     return 0
 
 
 def _register_from_registry(
-    source_registry: OperatorRegistry,
-    target_registry: OperatorRegistry,
+    source_registry: OperasRegistry,
+    target_registry: OperasRegistry,
     full_name: str,
 ) -> None:
-    info = source_registry.info(full_name)
-    fn = source_registry.get(full_name)
+    source_decl = source_registry.get(full_name)
     target_registry.register(
-        name=info["short_name"],
-        fn=fn,
-        namespace=info["namespace"],
-        metadata=info["metadata"],
+        OperaFunction(
+            namespace=source_decl.namespace,
+            name=source_decl.name,
+            arity=source_decl.arity,
+            return_dtype=source_decl.return_dtype,
+            numpy_impl=source_decl.numpy_impl,
+            polars_expr_impl=source_decl.polars_expr_impl,
+            flags=source_decl.flags,
+            metadata=dict(source_decl.metadata),
+        )
     )
 
 
 def _cmd_update(args: argparse.Namespace) -> int:
-    registry = get_global_registry()
-    staging = OperatorRegistry()
-    loaded = load_user_ops(args.path, staging, namespace=args.namespace)
+    ensure_cli_write_allowed("update")
+    registry = get_global_operas_registry()
+    _ensure_optional_user_namespace(
+        args.namespace,
+        action="CLI update namespace override",
+    )
+    staging = OperasRegistry()
+    loaded = load_user_ops(
+        args.path,
+        staging,
+        namespace=args.namespace,
+        refresh_sympy=False,
+    )
 
     if args.function:
         targets: list[str] = []
         for full_name in loaded:
-            split = _split_full_name(full_name)
+            split = try_split_full_name(full_name)
             if split is None:
                 continue
             namespace, short_name = split
@@ -387,7 +493,7 @@ def _cmd_update(args: argparse.Namespace) -> int:
             {
                 split[0]
                 for name in targets
-                for split in [_split_full_name(name)]
+                for split in [try_split_full_name(name)]
                 if split is not None
             }
         )
@@ -407,7 +513,7 @@ def _cmd_update(args: argparse.Namespace) -> int:
                 pass
             if not args.session_only:
                 clear_persisted_function_overrides(full_name)
-                split = _split_full_name(full_name)
+                split = try_split_full_name(full_name)
                 if split is not None:
                     clear_persisted_namespace_overrides(split[0])
 
@@ -417,7 +523,7 @@ def _cmd_update(args: argparse.Namespace) -> int:
     if not args.session_only:
         persist_user_ops(args.path, namespace=args.namespace)
 
-    refresh_sympy_dicts_if_global_registry(registry)
+    _refresh_global_registry_views(registry)
     _print_value(
         {
             "updated": updated,
@@ -443,30 +549,28 @@ def _cmd_help(args: argparse.Namespace) -> int:
 
 
 def _cmd_init(args: argparse.Namespace) -> int:
+    selected_namespaces = _parse_csv_namespaces(args.namespaces)
     if args.manifest:
         summary = init_curve_cache(
             args.manifest,
             source_root=args.source_root,
             cache_root=args.cache_root,
             index_path=args.index_path,
+            namespaces=selected_namespaces,
             force=bool(args.force),
         )
     else:
-        resource = resources.files("jarvis_operas").joinpath(
-            "manifests",
-            "interpolations.manifest.json",
+        summary = init_builtin_curve_cache(
+            source_root=args.source_root,
+            cache_root=args.cache_root,
+            index_path=args.index_path,
+            namespaces=selected_namespaces,
+            force=bool(args.force),
         )
-        with resources.as_file(resource) as default_manifest_path:
-            summary = init_curve_cache(
-                str(default_manifest_path),
-                source_root=args.source_root,
-                cache_root=args.cache_root,
-                index_path=args.index_path,
-                force=bool(args.force),
-            )
     register_hot_curves_in_registry(
-        get_global_registry(),
+        get_global_operas_registry(),
         index_path=summary["index_path"],
+        namespaces=selected_namespaces,
     )
     if args.json:
         _print_value(summary, as_json=True)
@@ -480,23 +584,114 @@ def _cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_interp_list(args: argparse.Namespace) -> int:
+    entries = list_interpolation_namespace_entries(manifest_path=args.manifest)
+    display_manifest = args.manifest or "<built-in>"
+    if args.json:
+        _print_value(
+            {
+                "manifest_path": display_manifest,
+                "namespace_count": len(entries),
+                "namespaces": entries,
+            },
+            as_json=True,
+        )
+        return 0
+
+    _print_interp_list_human(entries, manifest_path=display_manifest)
+    return 0
+
+
+def _cmd_interp_validate(args: argparse.Namespace) -> int:
+    report = validate_interpolation_namespace_index(manifest_path=args.manifest)
+    if args.json:
+        _print_value(report, as_json=True)
+    else:
+        status = "ok" if report.get("ok") else "failed"
+        print(f"Validation: {status}")
+        print(f"Manifest:   {report.get('manifest_path')}")
+        print(f"Namespaces: {report.get('namespace_count')}")
+        print(f"Functions:  {report.get('function_count')}")
+        errors = report.get("errors", [])
+        if isinstance(errors, list) and errors:
+            print("")
+            print("Errors:")
+            for item in errors:
+                print(f"- {item}")
+    return 0 if bool(report.get("ok")) else 1
+
+
+def _cmd_interp_add(args: argparse.Namespace) -> int:
+    ensure_cli_write_allowed("interp add")
+    result = add_interpolation_namespace(
+        manifest_path=args.manifest,
+        namespace=args.namespace,
+        namespace_manifest=args.namespace_manifest,
+        description=args.description,
+        overwrite=bool(args.overwrite),
+    )
+    if args.json:
+        _print_value(result, as_json=True)
+        return 0
+
+    state = "added"
+    if result.get("updated"):
+        state = "updated"
+    if result.get("unchanged"):
+        state = "unchanged"
+    print(f"Namespace {state}: {result['namespace']}")
+    print(f"Manifest: {result['manifest_path']}")
+    return 0
+
+
+def _cmd_interp_remove(args: argparse.Namespace) -> int:
+    ensure_cli_write_allowed("interp remove")
+    result = remove_interpolation_namespace(
+        manifest_path=args.manifest,
+        namespace=args.namespace,
+    )
+    if args.json:
+        _print_value(result, as_json=True)
+    else:
+        if result.get("removed"):
+            print(f"Namespace removed: {result['namespace']}")
+        else:
+            print(f"Namespace not found: {result['namespace']}")
+        print(f"Manifest: {result['manifest_path']}")
+
+    if args.strict and not bool(result.get("removed")):
+        return 1
+    return 0
+
+
 def _cmd_delete_func(args: argparse.Namespace) -> int:
-    registry = get_global_registry()
+    ensure_cli_write_allowed("delete-func")
+    registry = get_global_operas_registry()
     resolved_full_name = registry.resolve_name(args.target)
+    split = try_split_full_name(resolved_full_name)
+    if split is not None and is_protected_namespace(split[0]):
+        raise ValueError(
+            f"namespace '{split[0]}' is protected and cannot be modified by delete-func"
+        )
     registry.delete(args.target)
     if not args.session_only:
         delete_persisted_function(resolved_full_name)
-    refresh_sympy_dicts_if_global_registry(registry)
+    _refresh_global_registry_views(registry)
     _print_value({"deleted": resolved_full_name, "session_only": bool(args.session_only)}, as_json=True)
     return 0
 
 
 def _cmd_delete_namespace(args: argparse.Namespace) -> int:
-    registry = get_global_registry()
+    ensure_cli_write_allowed("delete-namespace")
+    ensure_user_namespace_allowed(
+        args.namespace,
+        action="CLI delete-namespace",
+    )
+    registry = get_global_operas_registry()
     deleted = registry.delete_namespace(args.namespace)
     if not args.session_only:
         delete_persisted_namespace(args.namespace)
-    refresh_sympy_dicts_if_global_registry(registry)
+    _refresh_global_registry_views(registry)
     _print_value(
         {
             "namespace": args.namespace,
@@ -529,7 +724,7 @@ def _add_log_mode_arg(parser: argparse.ArgumentParser) -> None:
 def _add_call_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "full_name",
-        help="Full operator name, e.g. math.add or my_ops.my_op",
+        help="Full function name, e.g. math.add or my_ops.my_op",
     )
     parser.add_argument(
         "--kwargs",
@@ -548,6 +743,12 @@ def _add_call_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Force JSON output formatting.",
     )
+    parser.add_argument(
+        "--backend",
+        choices=("numpy", "polars"),
+        default="numpy",
+        help="Execution backend for this call (default: numpy).",
+    )
     _add_source_args(parser)
 
 
@@ -557,7 +758,7 @@ def build_parser() -> argparse.ArgumentParser:
         description=textwrap.dedent(
             """
             Jarvis-Operas CLI
-            Register, inspect, and run operators by name.
+            Register, inspect, and run functions by name.
             """
         ).strip(),
         epilog="Use 'jopera help examples' for copy-paste examples.",
@@ -587,7 +788,7 @@ def build_parser() -> argparse.ArgumentParser:
         title="commands",
     )
 
-    parser_list = subparsers.add_parser("list", help="List available operators")
+    parser_list = subparsers.add_parser("list", help="List available functions")
     parser_list.add_argument("--namespace", default=None, help="Filter by namespace")
     parser_list.add_argument(
         "--json",
@@ -598,24 +799,24 @@ def build_parser() -> argparse.ArgumentParser:
     _add_source_args(parser_list)
     parser_list.set_defaults(func=_cmd_list)
 
-    parser_info = subparsers.add_parser("info", help="Show operator metadata")
-    parser_info.add_argument("target", help="Full operator name or operator id")
+    parser_info = subparsers.add_parser("info", help="Show function metadata")
+    parser_info.add_argument("target", help="Full function name or function id")
     parser_info.add_argument("--json", action="store_true", help="Force JSON output")
     _add_log_mode_arg(parser_info)
     _add_source_args(parser_info)
     parser_info.set_defaults(func=_cmd_info)
 
-    parser_call = subparsers.add_parser("call", help="Call an operator synchronously")
+    parser_call = subparsers.add_parser("call", help="Call a function synchronously")
     _add_log_mode_arg(parser_call)
     _add_call_args(parser_call)
     parser_call.set_defaults(func=_cmd_call)
 
-    parser_acall = subparsers.add_parser("acall", help="Call an operator asynchronously")
+    parser_acall = subparsers.add_parser("acall", help="Call a function asynchronously")
     _add_log_mode_arg(parser_acall)
     _add_call_args(parser_acall)
     parser_acall.set_defaults(func=_cmd_acall)
 
-    parser_load = subparsers.add_parser("load", help="Load user operators from a file")
+    parser_load = subparsers.add_parser("load", help="Load user functions from a file")
     parser_load.add_argument("path", help="Path to Python file")
     _add_log_mode_arg(parser_load)
     parser_load.add_argument(
@@ -639,6 +840,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--manifest",
         default=None,
         help="Path to manifest JSON defining curves.",
+    )
+    parser_init.add_argument(
+        "--namespaces",
+        default=None,
+        help="Optional comma-separated interpolation namespaces to process.",
     )
     parser_init.add_argument(
         "--source-root",
@@ -667,9 +873,111 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser_init.set_defaults(func=_cmd_init)
 
+    parser_interp = subparsers.add_parser(
+        "interp",
+        help="Manage interpolation namespace manifest index",
+    )
+    _add_log_mode_arg(parser_interp)
+    interp_subparsers = parser_interp.add_subparsers(
+        dest="interp_command",
+        required=True,
+        title="interp commands",
+    )
+
+    parser_interp_list = interp_subparsers.add_parser(
+        "list",
+        help="List interpolation namespaces from root manifest",
+    )
+    parser_interp_list.add_argument(
+        "--manifest",
+        default=None,
+        help="Path to root interpolation manifest index (default: built-in).",
+    )
+    parser_interp_list.add_argument(
+        "--json",
+        action="store_true",
+        help="Output JSON summary.",
+    )
+    parser_interp_list.set_defaults(func=_cmd_interp_list)
+
+    parser_interp_validate = interp_subparsers.add_parser(
+        "validate",
+        help="Validate root interpolation manifest index and namespace manifests",
+    )
+    parser_interp_validate.add_argument(
+        "--manifest",
+        default=None,
+        help="Path to root interpolation manifest index (default: built-in).",
+    )
+    parser_interp_validate.add_argument(
+        "--json",
+        action="store_true",
+        help="Output JSON validation report.",
+    )
+    parser_interp_validate.set_defaults(func=_cmd_interp_validate)
+
+    parser_interp_add = interp_subparsers.add_parser(
+        "add",
+        help="Add one interpolation namespace entry to root manifest index",
+    )
+    parser_interp_add.add_argument(
+        "--manifest",
+        required=True,
+        help="Writable root interpolation manifest index path.",
+    )
+    parser_interp_add.add_argument(
+        "namespace",
+        help="Namespace to add, e.g. dmdd.",
+    )
+    parser_interp_add.add_argument(
+        "namespace_manifest",
+        help="Namespace manifest path or ref, relative to root manifest directory.",
+    )
+    parser_interp_add.add_argument(
+        "--description",
+        default=None,
+        help="Optional namespace description.",
+    )
+    parser_interp_add.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace existing namespace entry when namespace already exists.",
+    )
+    parser_interp_add.add_argument(
+        "--json",
+        action="store_true",
+        help="Output JSON summary.",
+    )
+    parser_interp_add.set_defaults(func=_cmd_interp_add)
+
+    parser_interp_remove = interp_subparsers.add_parser(
+        "remove",
+        help="Remove one interpolation namespace entry from root manifest index",
+    )
+    parser_interp_remove.add_argument(
+        "--manifest",
+        required=True,
+        help="Writable root interpolation manifest index path.",
+    )
+    parser_interp_remove.add_argument(
+        "namespace",
+        help="Namespace to remove.",
+    )
+    parser_interp_remove.add_argument(
+        "--strict",
+        action="store_true",
+        help="Return non-zero when namespace does not exist.",
+    )
+    parser_interp_remove.add_argument(
+        "--json",
+        action="store_true",
+        help="Output JSON summary.",
+    )
+    parser_interp_remove.set_defaults(func=_cmd_interp_remove)
+
     parser_update = subparsers.add_parser(
         "update",
-        help="Update operators from a Python file (default: whole namespace)",
+        help="Update functions from a Python file (default: whole namespace)",
     )
     parser_update.add_argument("path", help="Path to Python file")
     _add_log_mode_arg(parser_update)
@@ -692,10 +1000,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_delete_func = subparsers.add_parser(
         "delete-func",
-        help="Delete one function by full operator name or id",
+        help="Delete one function by full name or id",
     )
     _add_log_mode_arg(parser_delete_func)
-    parser_delete_func.add_argument("target", help="Full operator name or operator id")
+    parser_delete_func.add_argument("target", help="Full function name or function id")
     parser_delete_func.add_argument(
         "--session-only",
         action="store_true",
@@ -759,7 +1067,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except OperatorNotFound as exc:
-        registry = get_global_registry()
+        registry = get_global_operas_registry()
         _print_not_found_error(exc.full_name, registry.list())
         return 1
     except Exception as exc:
