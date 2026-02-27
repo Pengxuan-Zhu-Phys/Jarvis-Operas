@@ -1,29 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from scipy import linalg
 
 
-def chi2_cov(residual=None, cov=None, observables=None, logger=None):
+def chi2_cov_numpy(residual, cov, logger=None, **_params):
     """Compute chi2 = r^T * C^{-1} * r for residual and covariance."""
-
-    source = _as_mapping(observables, name="observables")
-    if cov is None and isinstance(residual, Mapping):
-        source = dict(residual) if source is None else {**source, **residual}
-        residual = None
-
-    if residual is None and source is not None and "residual" in source:
-        residual = source["residual"]
-    if cov is None and source is not None and "cov" in source:
-        cov = source["cov"]
-
-    if residual is None or cov is None:
-        raise ValueError(
-            "chi2_cov requires 'residual' and 'cov', or observables containing both keys."
-        )
 
     if isinstance(residual, pd.DataFrame):
         result = _chi2_cov_dataframe(residual, cov)
@@ -31,9 +16,34 @@ def chi2_cov(residual=None, cov=None, observables=None, logger=None):
         result = _chi2_cov_array_like(residual, cov)
 
     if logger is not None:
-        logger.debug("chi2_cov called")
+        logger.debug("stat.chi2_cov called")
 
     return result
+
+
+def chi2_cov_polars_expr(residual, cov, **_params):
+    try:
+        import polars as pl  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise RuntimeError("polars is required for stat.chi2_cov polars backend") from exc
+
+    cov_mat = _cov_to_numpy(cov)
+    if cov_mat.ndim != 2 or cov_mat.shape[0] != cov_mat.shape[1]:
+        raise ValueError("cov must be a square matrix")
+    expected_dim = int(cov_mat.shape[0])
+
+    def _udf(batch: Any):
+        residual_mat = _batch_to_residual_matrix(batch, expected_dim=expected_dim)
+        if residual_mat.shape[0] == 0:
+            return pl.Series([], dtype=pl.Float64)
+        solutions = linalg.solve(cov_mat, residual_mat.T, assume_a="sym")
+        chi2_vals = np.einsum("nd,dn->n", residual_mat, solutions)
+        return pl.Series(chi2_vals, dtype=pl.Float64)
+
+    try:
+        return residual.map_batches(_udf, return_dtype=pl.Float64)
+    except TypeError:
+        return residual.map_batches(_udf, pl.Float64)
 
 
 def _chi2_cov_array_like(residual, cov):
@@ -94,9 +104,27 @@ def _cov_to_numpy(cov) -> np.ndarray:
     return np.asarray(cov, dtype=float)
 
 
-def _as_mapping(value, *, name: str) -> Mapping | None:
-    if value is None:
-        return None
-    if not isinstance(value, Mapping):
-        raise ValueError(f"{name} must be a mapping")
-    return value
+def _batch_to_residual_matrix(batch: Any, *, expected_dim: int) -> np.ndarray:
+    values = batch.to_list()
+    if not values:
+        return np.empty((0, expected_dim), dtype=float)
+
+    first = values[0]
+    if isinstance(first, dict):
+        keys = list(first.keys())
+        matrix = np.asarray(
+            [[row[key] for key in keys] for row in values],
+            dtype=float,
+        )
+    elif isinstance(first, (list, tuple, np.ndarray)):
+        matrix = np.asarray(values, dtype=float)
+    else:
+        matrix = np.asarray(values, dtype=float).reshape(-1, 1)
+
+    if matrix.ndim == 1:
+        matrix = matrix.reshape(-1, 1)
+    if matrix.ndim != 2:
+        raise ValueError("residual expression must yield scalar/list/struct rows")
+    if matrix.shape[1] != expected_dim:
+        raise ValueError("residual width must match covariance dimension")
+    return matrix

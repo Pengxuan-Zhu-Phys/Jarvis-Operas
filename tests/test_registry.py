@@ -1,41 +1,64 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 from __future__ import annotations
+
+import re
 
 import numpy as np
 import pandas as pd
 import pytest
-import re
 
 from jarvis_operas import (
+    OperaFunction,
+    OperasRegistry,
     OperatorCallError,
     OperatorConflict,
     OperatorNotFound,
-    get_global_registry,
 )
-from jarvis_operas.registry import OperatorRegistry
+from jarvis_operas.api import get_global_operas_registry
+
+
+def _register(
+    registry: OperasRegistry,
+    *,
+    namespace: str,
+    name: str,
+    fn,
+    metadata: dict | None = None,
+    arity: int | None = None,
+) -> None:
+    registry.register(
+        OperaFunction(
+            namespace=namespace,
+            name=name,
+            arity=arity,
+            return_dtype=None,
+            numpy_impl=fn,
+            metadata=metadata or {},
+        )
+    )
 
 
 def test_conflict_rules_for_same_namespace_only() -> None:
-    registry = OperatorRegistry()
+    registry = OperasRegistry()
 
-    registry.register("chi2", lambda x: x, namespace="stat")
+    _register(registry, namespace="stat", name="chi2", fn=lambda x: x)
 
     with pytest.raises(OperatorConflict):
-        registry.register("chi2", lambda x: x, namespace="stat")
+        _register(registry, namespace="stat", name="chi2", fn=lambda x: x)
 
     # Different namespaces can reuse short names.
-    registry.register("chi2", lambda x: x, namespace="helper")
+    _register(registry, namespace="helper", name="chi2", fn=lambda x: x)
 
 
 def test_call_and_call_error_wrapping() -> None:
-    registry = OperatorRegistry()
-    registry.register("add", lambda a, b: a + b, namespace="math")
+    registry = OperasRegistry()
+    _register(registry, namespace="math", name="add", fn=lambda a, b: a + b, arity=2)
     assert registry.call("math.add", a=2, b=3) == 5
 
     def boom() -> None:
         raise ValueError("boom")
 
-    registry.register("boom", boom, namespace="bench")
+    _register(registry, namespace="bench", name="boom", fn=boom)
     with pytest.raises(OperatorCallError) as exc:
         registry.call("bench.boom")
 
@@ -43,18 +66,29 @@ def test_call_and_call_error_wrapping() -> None:
     assert isinstance(exc.value.__cause__, ValueError)
 
 
+def test_registry_does_not_recognize_invalid_full_name_format() -> None:
+    registry = OperasRegistry()
+    _register(registry, namespace="math", name="add", fn=lambda a, b: a + b, arity=2)
+
+    with pytest.raises(OperatorNotFound):
+        registry.get("math_add")
+    with pytest.raises(OperatorNotFound):
+        registry.call("math_add", a=2, b=3)
+
+
 def test_list_and_info() -> None:
-    registry = OperatorRegistry()
+    registry = OperasRegistry()
 
     def scale(x: float, factor: float = 2.0) -> float:
         """Scale one value by a factor."""
 
         return x * factor
 
-    registry.register(
-        "scale",
-        scale,
+    _register(
+        registry,
         namespace="script_ops",
+        name="scale",
+        fn=scale,
         metadata={"kind": "transform"},
     )
 
@@ -71,55 +105,58 @@ def test_list_and_info() -> None:
 
 
 def test_info_prefers_metadata_summary_then_note() -> None:
-    registry = OperatorRegistry()
+    registry = OperasRegistry()
 
     def f(x):
         """Docstring summary line."""
 
         return x
 
-    registry.register(
-        "f_summary",
-        f,
+    _register(
+        registry,
         namespace="meta",
+        name="f_summary",
+        fn=f,
         metadata={"summary": "Summary from metadata", "note": "Long note"},
     )
     info_summary = registry.info("meta.f_summary")
     assert info_summary["docstring"] == "Summary from metadata"
 
-    registry.register(
-        "f_note",
-        f,
+    _register(
+        registry,
         namespace="meta",
+        name="f_note",
+        fn=f,
         metadata={"note": "Summary from note"},
     )
     info_note = registry.info("meta.f_note")
     assert info_note["docstring"] == "Summary from note"
 
-    registry.register("f_doc", f, namespace="meta")
+    _register(registry, namespace="meta", name="f_doc", fn=f)
     info_doc = registry.info("meta.f_doc")
     assert info_doc["docstring"] == "Docstring summary line."
 
 
 def test_global_registry_contains_builtin_ops() -> None:
-    registry = get_global_registry()
+    registry = get_global_operas_registry()
 
     assert "math.add" in registry.list(namespace="math")
     assert registry.call("math.add", a=1, b=4) == 5
 
 
 def test_eggbox_builtin_supports_scalar_and_array_observables() -> None:
-    registry = get_global_registry()
+    registry = get_global_operas_registry()
 
     assert "helper.eggbox" in registry.list(namespace="helper")
     assert "helper.eggbox2d" in registry.list(namespace="helper")
 
-    scalar = registry.call("helper.eggbox", observables={"x": 0.5, "y": 0.0})
+    scalar = registry.call("helper.eggbox", x=0.5, y=0.0)
     assert scalar == pytest.approx(243.0)
 
     values = registry.call(
         "helper.eggbox",
-        observables={"x": np.array([0.0, 0.5]), "y": np.array([0.0, 0.0])},
+        x=np.array([0.0, 0.5]),
+        y=np.array([0.0, 0.0]),
     )
     assert np.allclose(values, np.array([32.0, 243.0]))
 
@@ -128,35 +165,35 @@ def test_eggbox_builtin_supports_scalar_and_array_observables() -> None:
 
 
 def test_eggbox2d_builtin_returns_mapping_payload() -> None:
-    registry = get_global_registry()
+    registry = get_global_operas_registry()
 
-    scalar_result = registry.call("helper.eggbox2d", observables={"x": 0.5, "y": 0.0})
+    scalar_result = registry.call("helper.eggbox2d", x=0.5, y=0.0)
     assert scalar_result["z"] == pytest.approx(243.0)
 
     array_result = registry.call(
         "helper.eggbox2d",
-        observables={"x": np.array([0.0, 0.5]), "y": np.array([0.0, 0.0]), "uuid": "s-01"},
-        sample_info={"uuid": "s-01"},
-        cfg={"name": "EggBox"},
+        x=np.array([0.0, 0.5]),
+        y=np.array([0.0, 0.0]),
     )
     assert np.allclose(array_result["z"], np.array([32.0, 243.0]))
 
 
-def test_eggbox_builtin_validates_observables_mapping() -> None:
-    registry = get_global_registry()
+def test_eggbox_builtin_validates_required_inputs() -> None:
+    registry = get_global_operas_registry()
 
     with pytest.raises(OperatorCallError) as exc:
-        registry.call("helper.eggbox", observables={"x": 0.5})
+        registry.call("helper.eggbox", x=0.5)
 
-    assert isinstance(exc.value.__cause__, ValueError)
+    assert isinstance(exc.value.__cause__, TypeError)
 
 
 def test_helper_namespace_sets_concurrent_metadata() -> None:
-    registry = OperatorRegistry()
-    registry.register(
-        "demo",
-        lambda x: x,
+    registry = OperasRegistry()
+    _register(
+        registry,
         namespace="helper",
+        name="demo",
+        fn=lambda x: x,
         metadata={"note": "test"},
     )
 
@@ -166,8 +203,8 @@ def test_helper_namespace_sets_concurrent_metadata() -> None:
 
 
 def test_delete_and_rename_function() -> None:
-    registry = OperatorRegistry()
-    registry.register("foo", lambda x: x + 1, namespace="tmp")
+    registry = OperasRegistry()
+    _register(registry, namespace="tmp", name="foo", fn=lambda x: x + 1)
 
     info_before = registry.info("tmp.foo")
     operator_id = info_before["id"]
@@ -185,9 +222,9 @@ def test_delete_and_rename_function() -> None:
 
 
 def test_delete_and_rename_namespace() -> None:
-    registry = OperatorRegistry()
-    registry.register("a", lambda x: x, namespace="ns")
-    registry.register("b", lambda x: x, namespace="ns")
+    registry = OperasRegistry()
+    _register(registry, namespace="ns", name="a", fn=lambda x: x)
+    _register(registry, namespace="ns", name="b", fn=lambda x: x)
 
     updated = registry.rename_namespace("ns", "newns")
     assert sorted(updated) == ["newns.a", "newns.b"]
@@ -200,19 +237,19 @@ def test_delete_and_rename_namespace() -> None:
 
 
 def test_rename_namespace_conflict() -> None:
-    registry = OperatorRegistry()
-    registry.register("same", lambda x: x, namespace="old")
-    registry.register("same", lambda x: x, namespace="target")
+    registry = OperasRegistry()
+    _register(registry, namespace="old", name="same", fn=lambda x: x)
+    _register(registry, namespace="target", name="same", fn=lambda x: x)
 
     with pytest.raises(OperatorConflict):
         registry.rename_namespace("old", "target")
 
 
 def test_operator_ids_unique_across_namespaces() -> None:
-    registry = OperatorRegistry()
-    registry.register("x", lambda v: v, namespace="math")
-    registry.register("x", lambda v: v, namespace="stat")
-    registry.register("x", lambda v: v, namespace="helper")
+    registry = OperasRegistry()
+    _register(registry, namespace="math", name="x", fn=lambda v: v)
+    _register(registry, namespace="stat", name="x", fn=lambda v: v)
+    _register(registry, namespace="helper", name="x", fn=lambda v: v)
 
     ids = {
         registry.info("math.x")["id"],
@@ -225,7 +262,7 @@ def test_operator_ids_unique_across_namespaces() -> None:
 
 
 def test_builtin_ops_support_numpy_and_pandas_sync() -> None:
-    registry = get_global_registry()
+    registry = get_global_operas_registry()
 
     np_add = registry.call("math.add", a=np.array([1.0, 2.0]), b=np.array([3.0, 4.0]))
     assert np.allclose(np_add, np.array([4.0, 6.0]))
@@ -244,7 +281,8 @@ def test_builtin_ops_support_numpy_and_pandas_sync() -> None:
 
     pd_eggbox = registry.call(
         "helper.eggbox",
-        observables={"x": pd.Series([0.0, 0.5]), "y": pd.Series([0.0, 0.0])},
+        x=pd.Series([0.0, 0.5]),
+        y=pd.Series([0.0, 0.0]),
     )
     assert isinstance(pd_eggbox, pd.Series)
     assert np.allclose(pd_eggbox.to_numpy(), np.array([32.0, 243.0]))
@@ -268,25 +306,3 @@ def test_builtin_ops_support_numpy_and_pandas_sync() -> None:
     assert isinstance(pd_chi2, pd.Series)
     assert list(pd_chi2.index) == ["s1", "s2"]
     assert np.allclose(pd_chi2.to_numpy(), np.array([0.5, 3.0]))
-
-
-def test_builtin_ops_support_observables_dict_sync() -> None:
-    registry = get_global_registry()
-
-    assert registry.call("math.add", observables={"a": 2.0, "b": 3.0}) == 5.0
-    assert registry.call("math.identity", observables={"x": 4.0}) == 4.0
-
-    chi2 = registry.call(
-        "stat.chi2_cov",
-        observables={
-            "residual": [1.0, 0.0],
-            "cov": [[2.0, 0.0], [0.0, 1.0]],
-        },
-    )
-    assert chi2 == pytest.approx(0.5)
-
-    egg = registry.call(
-        "helper.eggbox",
-        observables={"x": 0.5, "y": 0.0},
-    )
-    assert egg == pytest.approx(243.0)

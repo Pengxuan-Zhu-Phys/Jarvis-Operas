@@ -6,42 +6,31 @@ from types import SimpleNamespace
 from typing import Any, Callable
 
 import sympy as sp
-from .api import get_global_registry
+
+from .api import get_global_operas_registry, is_global_operas_registry
+from .core.registry import OperasRegistry
+from .name_utils import try_split_full_name
 
 
-def build_register_dicts(registry=None) -> dict[str, Any]:
-    """Return a plain name->callable table for all registered operators.
+def build_register_dicts(registry: OperasRegistry | None = None) -> dict[str, Callable[..., Any]]:
+    """Return full-name -> numeric callable table for all registered functions."""
 
-    Keys are exactly the full names returned by `registry.list()`, e.g.:
-    - `math.add`
-    - `dmdd.LZSI2024`
-    """
-
-    target_registry = registry or get_global_registry()
-    table: dict[str, Any] = {}
+    target_registry = registry or get_global_operas_registry()
+    table: dict[str, Callable[..., Any]] = {}
     for full_name in target_registry.list():
         try:
-            fn = target_registry.get(full_name)
+            declaration = target_registry.get(full_name)
         except Exception:
             continue
+
+        fn = declaration.numpy_impl
         if callable(fn):
             table[full_name] = fn
     return table
 
 
-def _split_full_name(full_name: str) -> tuple[str, str] | None:
-    normalized = full_name.strip()
-    if not normalized:
-        return None
-    if ":" in normalized:
-        return None
-    if "." not in normalized:
-        return None
-    return normalized.split(".", 1)
-
-
 def _to_symbolic_name(full_name: str) -> str:
-    split = _split_full_name(full_name)
+    split = try_split_full_name(full_name)
     if split is None:
         raise ValueError(f"invalid full operator name: {full_name!r}")
     namespace, short_name = split
@@ -60,14 +49,7 @@ def build_sympy_dicts(
     namespaces: list[str] | None = None,
     include_all: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Callable[..., Any]]]:
-    """Build `sympify` locals and `lambdify` numeric maps from register dicts.
-
-    `func_locals` shape:
-    - {"dmdd": SimpleNamespace(LZSI2024=Function("dmdd__LZSI2024__..."))}
-
-    `numeric_funcs` shape:
-    - {"dmdd__LZSI2024__...": <callable>}
-    """
+    """Build `sympify` locals and `lambdify` numeric maps from register dicts."""
 
     source = mapping if mapping is not None else build_register_dicts()
     parse_locals: dict[str, Any] = {}
@@ -78,7 +60,7 @@ def build_sympy_dicts(
     for full_name, fn in source.items():
         if not callable(fn):
             continue
-        split = _split_full_name(full_name)
+        split = try_split_full_name(full_name)
         if split is None:
             continue
         namespace, short_name = split
@@ -107,13 +89,9 @@ def _refresh_sympy_dicts() -> None:
 
 
 def refresh_sympy_dicts_if_global_registry(registry: Any) -> bool:
-    """Refresh public SymPy dict snapshots only when mutating global registry."""
+    """Refresh SymPy dict snapshots only when mutating the global registry."""
 
-    # Import lazily to avoid hard dependency on private module globals at import time.
-    from . import api as _api
-
-    global_registry = getattr(_api, "_global_registry", None)
-    if global_registry is None or registry is not global_registry:
+    if not is_global_operas_registry(registry):
         return False
     _refresh_sympy_dicts()
     return True

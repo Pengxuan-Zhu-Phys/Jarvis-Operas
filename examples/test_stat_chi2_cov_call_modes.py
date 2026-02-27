@@ -5,7 +5,7 @@ import asyncio
 import numpy as np
 import pandas as pd
 
-from jarvis_operas import get_global_registry
+from jarvis_operas import get_global_operas_registry
 
 
 def _assert_close_scalar(value: float, expected: float, name: str) -> None:
@@ -30,16 +30,6 @@ async def _run_async_cases(registry, operator_id: str) -> None:
     )
     _assert_close_scalar(async_list, expected_scalar, "async/list/by-name")
 
-    # Async call by observables dict (Jarvis-HEP style).
-    async_obs = await registry.acall(
-        "stat.chi2_cov",
-        observables={
-            "residual": [1.0, 0.0],
-            "cov": [[2.0, 0.0], [0.0, 1.0]],
-        },
-    )
-    _assert_close_scalar(async_obs, expected_scalar, "async/observables/by-name")
-
     # Async call by operator id with numpy batch residual.
     async_batch = await registry.acall(
         operator_id,
@@ -50,7 +40,7 @@ async def _run_async_cases(registry, operator_id: str) -> None:
 
 
 def main() -> None:
-    registry = get_global_registry()
+    registry = get_global_operas_registry()
     info = registry.info("stat.chi2_cov")
     operator_id = info["id"]
     print(f"Testing operator: {info['name']} (id={operator_id})")
@@ -93,17 +83,7 @@ def main() -> None:
         )
     _assert_close_vector(sync_pandas.to_numpy(), expected_batch, "sync/pandas/by-name")
 
-    # 4) Sync call by observables dict (Jarvis-HEP style).
-    sync_obs = registry.call(
-        "stat.chi2_cov",
-        observables={
-            "residual": [1.0, 0.0],
-            "cov": [[2.0, 0.0], [0.0, 1.0]],
-        },
-    )
-    _assert_close_scalar(sync_obs, expected_scalar, "sync/observables/by-name")
-
-    # 5) Sync call by operator id.
+    # 4) Sync call by operator id.
     sync_by_id = registry.call(
         operator_id,
         residual=[1.0, 0.0],
@@ -111,13 +91,13 @@ def main() -> None:
     )
     _assert_close_scalar(sync_by_id, expected_scalar, "sync/list/by-id")
 
-    # 6+) Async call variants.
+    # 5+) Async call variants.
     asyncio.run(_run_async_cases(registry, operator_id))
 
     print("All call styles and input formats passed.")
     print("Covered:")
-    print("- sync: name/list, name/numpy, name/pandas, name/observables, id/list")
-    print("- async: name/list, name/observables, id/numpy-batch")
+    print("- sync: name/list, name/numpy, name/pandas, id/list")
+    print("- async: name/list, id/numpy-batch")
 
 
 if __name__ == "__main__":

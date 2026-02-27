@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Jarvis-Operas"
-version = "1.1.4"
+version = "1.3.1"
 description = "Operator registry and async-friendly execution layer for Jarvis"
 readme = "README.md"
 requires-python = ">=3.10"
