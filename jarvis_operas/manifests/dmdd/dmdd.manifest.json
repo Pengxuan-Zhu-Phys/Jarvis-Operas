@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "kind": "jarvis_operas_interpolation_namespace_manifest",
+  "namespace": "dmdd",
+  "functions": [
+    {
+      "name": "LZSI2024",
+      "source": "dmdd/LZSI_2024.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmdd",
+        "mode": "x_log_y_log",
+        "note": "LZ 2024 result of DM-Nucleon SI 90% C.L. upper limits. From https://arxiv.org/pdf/2410.17036",
+        "summary": "LZ 2024 SI 90% C.L. upper limit curve (arXiv:2410.17036)."
+      }
+    }
+  ]
+}

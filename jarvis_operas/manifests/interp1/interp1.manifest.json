@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "kind": "jarvis_operas_interpolation_namespace_manifest",
+  "namespace": "interp1",
+  "functions": [
+    {
+      "name": "interp1_xy_flat",
+      "source": "interp1/interp1_xy_flat.json",
+      "kind": "cubic",
+      "logX": false,
+      "logY": false,
+      "hot": true,
+      "metadata": {
+        "group": "interp1",
+        "mode": "x_flat_y_flat",
+        "note": "placeholder points; replace with production data"
+      }
+    },
+    {
+      "name": "interp1_xlog_yflat",
+      "source": "interp1/interp1_xlog_yflat.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": false,
+      "hot": true,
+      "metadata": {
+        "group": "interp1",
+        "mode": "x_log_y_flat",
+        "note": "placeholder points; replace with production data"
+      }
+    },
+    {
+      "name": "interp1_xflat_ylog",
+      "source": "interp1/interp1_xflat_ylog.json",
+      "kind": "cubic",
+      "logX": false,
+      "logY": true,
+      "hot": true,
+      "metadata": {
+        "group": "interp1",
+        "mode": "x_flat_y_log",
+        "note": "placeholder points; replace with production data"
+      }
+    },
+    {
+      "name": "interp1_xy_log",
+      "source": "interp1/interp1_xy_log.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "hot": true,
+      "metadata": {
+        "group": "interp1",
+        "mode": "x_log_y_log",
+        "note": "placeholder points; replace with production data"
+      }
+    }
+  ]
+}

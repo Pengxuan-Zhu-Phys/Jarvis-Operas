@@ -6,13 +6,13 @@ import pytest
 
 from jarvis_operas import (
     OperatorLoadError,
+    OperasRegistry,
     func_locals,
-    get_global_registry,
     load_user_ops,
     numeric_funcs,
 )
+from jarvis_operas.api import get_global_operas_registry
 from jarvis_operas.integration import refresh_sympy_dicts_if_global_registry
-from jarvis_operas.registry import OperatorRegistry
 
 
 def test_load_user_ops_with_decorator(tmp_path) -> None:
@@ -30,7 +30,7 @@ def test_load_user_ops_with_decorator(tmp_path) -> None:
         encoding="utf-8",
     )
 
-    registry = OperatorRegistry()
+    registry = OperasRegistry()
     loaded = load_user_ops(str(op_file), registry)
 
     assert loaded == ["decor_ops.double"]
@@ -54,7 +54,7 @@ def test_load_user_ops_with_export_whitelist(tmp_path) -> None:
         encoding="utf-8",
     )
 
-    registry = OperatorRegistry()
+    registry = OperasRegistry()
     loaded = load_user_ops(str(op_file), registry)
 
     assert loaded == ["whitelist_ops.triple"]
@@ -65,7 +65,7 @@ def test_load_user_ops_wraps_import_errors(tmp_path) -> None:
     op_file = tmp_path / "broken_ops.py"
     op_file.write_text("def broken(:\n", encoding="utf-8")
 
-    registry = OperatorRegistry()
+    registry = OperasRegistry()
 
     with pytest.raises(OperatorLoadError) as exc:
         load_user_ops(str(op_file), registry)
@@ -92,7 +92,7 @@ def test_load_user_ops_refreshes_sympy_dicts_for_global_registry(tmp_path) -> No
 
     namespace = "autorefresh_ops"
     full_name = f"{namespace}.plus_seven"
-    registry = get_global_registry()
+    registry = get_global_operas_registry()
     registry.delete_namespace(namespace)
     refresh_sympy_dicts_if_global_registry(registry)
     assert namespace not in func_locals
@@ -106,3 +106,26 @@ def test_load_user_ops_refreshes_sympy_dicts_for_global_registry(tmp_path) -> No
     finally:
         registry.delete_namespace(namespace)
         refresh_sympy_dicts_if_global_registry(registry)
+
+
+def test_load_user_ops_rejects_protected_namespace(tmp_path) -> None:
+    op_file = tmp_path / "ops.py"
+    op_file.write_text(
+        textwrap.dedent(
+            """
+            def foo(x):
+                return x
+
+            __JARVIS_OPERAS__ = {
+                "foo": foo,
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    registry = OperasRegistry()
+    with pytest.raises(OperatorLoadError) as exc:
+        load_user_ops(str(op_file), registry, namespace="math")
+
+    assert "protected" in str(exc.value).lower()

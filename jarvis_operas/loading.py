@@ -2,31 +2,33 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
-import re
 import sys
 import time
 from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Any, Mapping
 
-from .api import _use_registry
+from .core.registry import OperasRegistry
+from .core.spec import OperaFunction
 from .errors import OperatorLoadError
 from .logging import get_logger
-from .registry import OperatorRegistry
+from .name_utils import namespace_from_source_path
+from .namespace_policy import ensure_user_namespace_allowed
+from .registration import make_operafunction, use_registry
 
 
 def load_user_ops(
     path: str,
-    registry: OperatorRegistry,
+    registry: OperasRegistry,
     *,
     namespace: str | None = None,
+    refresh_sympy: bool = True,
     logger: Any | None = None,
 ) -> list[str]:
     """Load user operators from a Python file via decorator or __JARVIS_OPERAS__."""
 
     local_logger = get_logger(logger, action="load_user_ops")
     module_path = Path(path).expanduser().resolve()
-    target_namespace = namespace or _namespace_from_path(module_path)
 
     if not module_path.exists() or not module_path.is_file():
         raise OperatorLoadError(
@@ -34,10 +36,14 @@ def load_user_ops(
             f"User operator file does not exist: {module_path}",
         )
 
-    before_ops = set(registry.list())
-    module_name = _build_module_name(module_path)
-
     try:
+        target_namespace = ensure_user_namespace_allowed(
+            namespace or namespace_from_source_path(module_path),
+            action="user operator loading",
+        )
+        before_ops = set(registry.list())
+        module_name = _build_module_name(module_path)
+
         spec = importlib.util.spec_from_file_location(module_name, module_path)
         if spec is None or spec.loader is None:
             raise RuntimeError(f"Cannot create import spec for {module_path}")
@@ -45,7 +51,7 @@ def load_user_ops(
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
         try:
-            with _use_registry(registry, default_namespace=target_namespace):
+            with use_registry(registry, default_namespace=target_namespace):
                 spec.loader.exec_module(module)
         except Exception:
             sys.modules.pop(module_name, None)
@@ -59,13 +65,14 @@ def load_user_ops(
                 raise TypeError("__JARVIS_OPERAS__ must be a mapping of name -> callable")
 
             for op_name, fn in export_map.items():
-                registry.register(
-                    name=op_name,
-                    fn=fn,
+                loaded_name = _register_user_target(
+                    registry=registry,
                     namespace=target_namespace,
+                    name=str(op_name),
+                    target=fn,
                     metadata={"source": "__JARVIS_OPERAS__", "path": str(module_path)},
                 )
-                loaded.append(f"{target_namespace}.{op_name}")
+                loaded.append(loaded_name)
 
         if not loaded:
             raise RuntimeError(
@@ -73,9 +80,10 @@ def load_user_ops(
             )
 
         loaded_sorted = sorted(set(loaded))
-        from .integration import refresh_sympy_dicts_if_global_registry
+        if refresh_sympy:
+            from .integration import refresh_sympy_dicts_if_global_registry
 
-        refresh_sympy_dicts_if_global_registry(registry)
+            refresh_sympy_dicts_if_global_registry(registry)
         local_logger.info(
             "loaded {} operators from {}",
             len(loaded_sorted),
@@ -90,7 +98,7 @@ def load_user_ops(
 
 
 def discover_entrypoints(
-    registry: OperatorRegistry,
+    registry: OperasRegistry,
     logger: Any | None = None,
 ) -> list[str]:
     """Discover and register operators from entry points."""
@@ -112,21 +120,23 @@ def discover_entrypoints(
 
                 if isinstance(target, Mapping):
                     for op_name, fn in target.items():
-                        registry.register(
-                            name=op_name,
-                            fn=fn,
+                        loaded_name = _register_user_target(
+                            registry=registry,
                             namespace=namespace,
+                            name=str(op_name),
+                            target=fn,
                             metadata=metadata,
                         )
-                        loaded.append(f"{namespace}.{op_name}")
+                        loaded.append(loaded_name)
                 elif callable(target):
-                    registry.register(
-                        name=ep.name,
-                        fn=target,
+                    loaded_name = _register_user_target(
+                        registry=registry,
                         namespace=namespace,
+                        name=ep.name,
+                        target=target,
                         metadata=metadata,
                     )
-                    loaded.append(f"{namespace}.{ep.name}")
+                    loaded.append(loaded_name)
                 else:
                     raise TypeError(
                         f"Entry point '{ep.name}' in group '{group}' must load a callable "
@@ -154,9 +164,55 @@ def _iter_group_entrypoints(group: str):
     return eps.get(group, [])
 
 
-def _namespace_from_path(module_path: Path) -> str:
-    stem = module_path.stem.strip()
-    normalized = re.sub(r"[^0-9A-Za-z_]+", "_", stem).strip("_")
-    if not normalized:
-        return "user_ops"
-    return normalized
+def _register_user_target(
+    *,
+    registry: OperasRegistry,
+    namespace: str,
+    name: str,
+    target: Any,
+    metadata: Mapping[str, Any] | None = None,
+) -> str:
+    declaration = _to_declaration(
+        namespace=namespace,
+        name=name,
+        target=target,
+        metadata=metadata,
+    )
+    registry.register(declaration)
+    return declaration.full_name
+
+
+def _to_declaration(
+    *,
+    namespace: str,
+    name: str,
+    target: Any,
+    metadata: Mapping[str, Any] | None = None,
+) -> OperaFunction:
+    if isinstance(target, OperaFunction):
+        merged_metadata = dict(target.metadata)
+        if metadata:
+            merged_metadata.update(dict(metadata))
+        if target.namespace == namespace and target.name == name and merged_metadata == dict(
+            target.metadata
+        ):
+            return target
+        return OperaFunction(
+            namespace=namespace,
+            name=name,
+            arity=target.arity,
+            return_dtype=target.return_dtype,
+            numpy_impl=target.numpy_impl,
+            polars_expr_impl=target.polars_expr_impl,
+            flags=target.flags,
+            metadata=merged_metadata,
+        )
+
+    if not callable(target):
+        raise TypeError("target must be callable or OperaFunction")
+    return make_operafunction(
+        namespace=namespace,
+        name=name,
+        fn=target,
+        metadata=metadata,
+    )

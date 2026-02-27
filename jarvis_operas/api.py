@@ -1,98 +1,121 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
-from contextvars import ContextVar
+import os
 from threading import Lock
 from typing import Any
 
-from .builtins import register_builtins
-from .curves import register_hot_curves_in_registry
-from .registry import OperatorRegistry
-
-
-_registry_override: ContextVar[OperatorRegistry | None] = ContextVar(
-    "jarvis_operas_registry_override",
-    default=None,
+from .bootstrap_state import (
+    bootstrapping_global_registry,
+    is_bootstrapping_global_registry as _is_bootstrapping_global_registry,
 )
-_namespace_override: ContextVar[str | None] = ContextVar(
-    "jarvis_operas_namespace_override",
-    default=None,
+from .catalog import get_catalog_declarations
+from .core.operas import Operas
+from .core.registry import OperasRegistry
+from .curves import init_builtin_curve_cache, register_hot_curves_in_registry
+from .logging import get_logger
+from .namespace_policy import ensure_user_namespace_allowed
+from .registration import (
+    current_namespace_override,
+    current_registry_override,
+    make_operafunction,
 )
-_global_registry: OperatorRegistry | None = None
-_global_registry_lock = Lock()
+_global_operas_registry: OperasRegistry | None = None
+_global_operas: Operas | None = None
+_global_lock = Lock()
+_CURVE_INDEX_ENV = "JARVIS_OPERAS_CURVE_INDEX"
 
 
-def get_global_registry() -> OperatorRegistry:
-    global _global_registry
+def _bootstrap_global_registry(registry: OperasRegistry) -> None:
+    local_logger = get_logger(action="bootstrap_global_registry")
+    registry.register_many(tuple(get_catalog_declarations()))
 
-    if _global_registry is None:
-        with _global_registry_lock:
-            if _global_registry is None:
-                registry = OperatorRegistry()
-                register_builtins(registry)
-                # Auto-load persisted user operator sources for cross-process reuse.
-                from .persistence import apply_persisted_overrides, load_persisted_user_ops
+    # Lazy imports avoid bootstrap cycles during package import.
+    from .persistence import apply_persisted_overrides, load_persisted_user_ops
 
-                load_persisted_user_ops(registry)
-                register_hot_curves_in_registry(registry)
-                apply_persisted_overrides(registry)
-                _global_registry = registry
+    load_persisted_user_ops(registry, refresh_sympy=False)
+    curve_index_path: str | None = None
+    if not os.getenv(_CURVE_INDEX_ENV):
+        try:
+            summary = init_builtin_curve_cache(logger=local_logger)
+            curve_index_path = summary.get("index_path")
+        except Exception as exc:
+            local_logger.warning("failed to initialize built-in interpolation cache: {}", exc)
 
-    return _global_registry
-
-
-def _resolve_registry(registry: OperatorRegistry | None = None) -> OperatorRegistry:
-    if registry is not None:
-        return registry
-
-    overridden = _registry_override.get()
-    if overridden is not None:
-        return overridden
-
-    return get_global_registry()
+    register_hot_curves_in_registry(registry, index_path=curve_index_path, logger=local_logger)
+    apply_persisted_overrides(registry)
 
 
-def _resolve_namespace(namespace: str | None) -> str:
-    if namespace is not None:
-        return namespace
+def get_global_operas_registry() -> OperasRegistry:
+    global _global_operas_registry
 
-    overridden = _namespace_override.get()
-    if overridden is not None:
-        return overridden
+    if _global_operas_registry is None:
+        with _global_lock:
+            if _global_operas_registry is None:
+                registry = OperasRegistry()
+                with bootstrapping_global_registry():
+                    _bootstrap_global_registry(registry)
+                _global_operas_registry = registry
+    return _global_operas_registry
 
-    return "core"
+
+def is_global_operas_registry(registry: Any) -> bool:
+    """Return True only when `registry` is the initialized global registry."""
+
+    return _global_operas_registry is not None and registry is _global_operas_registry
 
 
-@contextmanager
-def _use_registry(
-    registry: OperatorRegistry,
-    default_namespace: str | None = None,
-):
-    registry_token = _registry_override.set(registry)
-    namespace_token = _namespace_override.set(default_namespace)
-    try:
-        yield
-    finally:
-        _namespace_override.reset(namespace_token)
-        _registry_override.reset(registry_token)
+def is_bootstrapping_global_registry() -> bool:
+    return _is_bootstrapping_global_registry()
+
+
+def get_global_operas(*, numpy_concurrency: int | None = None) -> Operas:
+    global _global_operas
+
+    if numpy_concurrency is not None and numpy_concurrency < 1:
+        raise ValueError("numpy_concurrency must be >= 1")
+
+    if _global_operas is None:
+        registry = get_global_operas_registry()
+        with _global_lock:
+            if _global_operas is None:
+                _global_operas = Operas(
+                    registry,
+                    numpy_concurrency=numpy_concurrency,
+                )
+    elif numpy_concurrency is not None:
+        current = _global_operas.registry.get_numpy_concurrency()
+        if current != numpy_concurrency:
+            get_logger(action="get_global_operas").warning(
+                "global Operas already initialized with numpy_concurrency={}; "
+                "ignoring new value {}",
+                current,
+                numpy_concurrency,
+            )
+    return _global_operas
 
 
 def oper(
     name: str,
     namespace: str | None = None,
-    registry: OperatorRegistry | None = None,
+    registry: OperasRegistry | None = None,
     **metadata: Any,
 ):
     """Decorator to register an operator into global or provided registry."""
 
     def decorator(fn):
-        target_registry = _resolve_registry(registry)
-        target_namespace = _resolve_namespace(namespace)
+        target_registry = registry or current_registry_override() or get_global_operas_registry()
+        target_namespace = namespace or current_namespace_override() or "core"
+        target_namespace = ensure_user_namespace_allowed(
+            target_namespace,
+            action="@oper registration",
+        )
         target_registry.register(
-            name=name,
-            fn=fn,
-            namespace=target_namespace,
-            metadata=metadata or None,
+            make_operafunction(
+                namespace=target_namespace,
+                name=name,
+                fn=fn,
+                metadata=metadata or None,
+            )
         )
         return fn
 
