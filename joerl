@@ -8,7 +8,7 @@ Usage:
   jorel <version>
 
 Example:
-  jorel 1.1.1
+  jorel 1.2.0
 EOF
 }
 
@@ -39,7 +39,7 @@ jorel() {
       exit 2
     fi
 
-    echo "[jorel] Step 1/7: bump version -> $version"
+    echo "[jorel] Step 1/8: bump version -> $version"
     python - <<'PY' "$version"
 from pathlib import Path
 import re
@@ -60,18 +60,31 @@ path.write_text(updated, encoding="utf-8")
 print(f"[jorel] pyproject.toml updated to {version}")
 PY
 
-    echo "[jorel] Step 2/7: clean build artifacts"
+    echo "[jorel] Step 2/8: clean build artifacts"
     rm -rf dist build Jarvis_Operas.egg-info
 
-    echo "[jorel] Step 3/7: build package"
-    python -m pip install --disable-pip-version-check -q build twine
+    echo "[jorel] Step 3/8: run release gate tests"
+    python -m pip install --disable-pip-version-check -q build twine pytest
+    python - <<'PY'
+try:
+    import polars  # noqa: F401
+except Exception as exc:
+    raise SystemExit(
+        "[jorel] Missing required dependency 'polars' for release gate tests. "
+        "Install it first with: pip install polars"
+    ) from exc
+PY
+    python -m pytest -q tests/test_release_gate_120.py
+    python -m pytest -q
+
+    echo "[jorel] Step 4/8: build package"
     python -m build
     python -m twine check dist/*
 
-    echo "[jorel] Step 4/7: upload to PyPI"
+    echo "[jorel] Step 5/8: upload to PyPI"
     python -m twine upload dist/*
 
-    echo "[jorel] Step 5/7: clean local pip residual metadata"
+    echo "[jorel] Step 6/8: clean local pip residual metadata"
     python - <<'PY'
 from __future__ import annotations
 
@@ -120,10 +133,10 @@ for base in site_paths:
                     pass
 PY
 
-    echo "[jorel] Step 6/7: reinstall from PyPI -> Jarvis-Operas==$version"
+    echo "[jorel] Step 7/8: reinstall from PyPI -> Jarvis-Operas==$version"
     python -m pip install --no-cache-dir --force-reinstall --no-deps "Jarvis-Operas==$version"
 
-    echo "[jorel] Step 7/7: verify local install"
+    echo "[jorel] Step 8/8: verify local install"
     python - <<'PY'
 import importlib.metadata as m
 import jarvis_operas
