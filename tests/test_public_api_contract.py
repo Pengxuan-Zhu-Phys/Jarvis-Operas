@@ -47,6 +47,10 @@ def test_public_global_registry_contract() -> None:
         "docstring",
         "is_async",
         "supports_async",
+        "supports_call",
+        "supports_acall",
+        "capabilities",
+        "supported_types",
     }
     assert required_keys.issubset(set(info.keys()))
 

@@ -7,6 +7,11 @@ Jarvis-Operas is a standalone operator layer for registering, loading, and calli
 - Native async entrypoint for Jarvis-HEP style execution (`await registry.acall(...)`)
 - Stable `"<namespace>.<name>"` naming for references from Jarvis-HEP/Jarvis-PLOT YAML
 
+Architecture and migration references:
+
+- `docs/architecture.md`
+- `docs/migration.md`
+
 ## Install
 
 ```bash
@@ -31,11 +36,13 @@ jopera list --namespace math --json
 jopera info stat.chi2_cov --json
 jopera call math.add --kwargs '{"a": 1, "b": 2}'
 jopera acall stat.chi2_cov --arg residual=[1.0,-0.5] --arg cov=[[2.0,0.1],[0.1,1.0]]
-jopera call helper.eggbox --kwargs '{"observables":{"x":0.5,"y":0.0}}'
+jopera call helper.eggbox --kwargs '{"x":0.5,"y":0.0}'
 jopera list --namespace math --log-mode info
 jopera call math.add --kwargs '{"a": 1, "b": 2}' --log-mode debug
 jopera init
 jopera init --manifest ./manifest.json --cache-root ~/.jarvis-operas/curve-cache
+jopera interp list
+jopera interp validate
 jopera --help-advanced
 ```
 
@@ -45,11 +52,6 @@ Load user operators directly in CLI:
 jopera load /absolute/path/to/my_ops.py
 jopera call my_ops.my_op --user-ops /absolute/path/to/my_ops.py --arg x=10
 jopera info my_ops.my_op --json
-jopera update /absolute/path/to/my_ops.py
-jopera update /absolute/path/to/my_ops.py --function my_op
-jopera delete-func my_ops.old_op
-jopera delete-func h12345
-jopera delete-namespace legacy_ops
 ```
 
 CLI behavior:
@@ -58,22 +60,26 @@ CLI behavior:
 - `jopera list` prints grouped human-readable output by default (`id + name`)
 - `jopera list --json` prints machine-readable JSON objects with `id/name/namespace`
 - `jopera info <name_or_id>` prints metadata (including a unique id) and a suggested next command
-- `jopera load <path>` persists this source path by default for future processes
+- `jopera load <path>` persists a JO-managed source snapshot for future processes
 - `jopera load <path> --session-only` loads without persisting
 - `jopera init` precompiles bundled interpolation manifest library
 - `jopera init --manifest <manifest.json>` precompiles a custom curve JSON manifest
-- `jopera update <path>` updates all functions in script namespaces (default behavior)
-- `jopera update <path> --function <name>` updates one function from script
-- `jopera delete-func <name_or_id>` / `delete-namespace` remove persisted functions/namespaces
+- `jopera interp list` lists root interpolation namespaces
+- `jopera interp validate` validates root+namespace manifests
+- User write policy: the supported user write path is `jopera load`
+- Developer-only write commands (`update`, `delete-func`, `delete-namespace`, `interp add/remove`) require `JARVIS_OPERAS_DEV_WRITE=1`
 
 ## Core API
 
 ```python
-from jarvis_operas import get_global_registry
+from jarvis_operas import get_global_operas_registry, get_global_operas
 
-registry = get_global_registry()
+registry = get_global_operas_registry()
 registry.call("math.add", a=1, b=2)
 registry.call("math.identity", x={"k": 1})
+
+operas = get_global_operas()
+operas.call("math.add", a=1, b=2)
 ```
 
 Supported namespace convention:
@@ -83,6 +89,8 @@ Supported namespace convention:
   - `stat.<name>`
   - `helper.<name>`
 - User operator files default to `<script_name>.<func_name>`
+- User operators cannot register into protected built-in namespaces (for example
+  `math`, `stat`, `helper`, `interp`, built-in interpolation namespaces).
 
 ## Async call (Jarvis-HEP Factory/Module friendly)
 
@@ -91,9 +99,6 @@ result = await registry.acall(
     "stat.chi2_cov",
     residual=[1.0, -0.5],
     cov=[[2.0, 0.1], [0.1, 1.0]],
-    observables={"obs": 1.0},
-    sample_info={"id": 42},
-    cfg={"mode": "demo"},
 )
 ```
 
@@ -101,6 +106,7 @@ Behavior:
 
 - Async operator: awaited directly
 - Sync operator: offloaded via `asyncio.to_thread` by default (or custom executor)
+- Default numpy async concurrency is CPU-scaled (`os.cpu_count() * 3`); override with `get_global_operas(numpy_concurrency=...)`
 - Batch helper concurrency: `await registry.acall_helper_many("eggbox", [...])`
 
 Example batch helper execution for Factory-side concurrent scans:
@@ -109,9 +115,9 @@ Example batch helper execution for Factory-side concurrent scans:
 results = await registry.acall_helper_many(
     "eggbox",
     [
-        {"observables": {"x": 0.1, "y": 0.2}},
-        {"observables": {"x": 0.3, "y": 0.4}},
-        {"observables": {"x": 0.5, "y": 0.6}},
+        {"x": 0.1, "y": 0.2},
+        {"x": 0.3, "y": 0.4},
+        {"x": 0.5, "y": 0.6},
     ],
 )
 ```
@@ -138,9 +144,9 @@ logger = get_logger()
 ## Load user operators from file
 
 ```python
-from jarvis_operas import OperatorRegistry, load_user_ops
+from jarvis_operas import OperasRegistry, load_user_ops
 
-registry = OperatorRegistry()
+registry = OperasRegistry()
 loaded = load_user_ops("./my_ops.py", registry)
 print(loaded)
 ```
@@ -148,17 +154,24 @@ print(loaded)
 Persistent registration for future Python processes:
 
 ```python
-from jarvis_operas import get_global_registry, persist_user_ops
+from jarvis_operas import get_global_operas_registry, persist_user_ops
 
 persist_user_ops("/absolute/path/to/my_ops.py")
-registry = get_global_registry()  # auto-loads persisted sources
+registry = get_global_operas_registry()  # auto-loads persisted sources
 ```
 
 Persistence store location:
 
-- Default: `~/.jarvis-operas/user_ops.json`
-- Override with env: `JARVIS_OPERAS_PERSIST_FILE=/custom/path/user_ops.json`
-- The same store keeps persistent delete/update overrides for functions and namespaces
+- Default sources registry: `~/.jarvis-operas/sources.json`
+- Default override rules: `~/.jarvis-operas/overrides.json`
+- Legacy base env (still supported): `JARVIS_OPERAS_PERSIST_FILE=/custom/path/persist_store.json`
+  - maps to sibling files `sources.json` and `overrides.json`
+- Optional explicit envs:
+  - `JARVIS_OPERAS_SOURCES_FILE=/custom/path/sources.json`
+  - `JARVIS_OPERAS_OVERRIDES_FILE=/custom/path/overrides.json`
+- Managed user source snapshots: `~/.jarvis-operas/user_sources/`
+- Override snapshot dir: `JARVIS_OPERAS_USER_SOURCE_DIR=/custom/path/user_sources`
+- Legacy single-file `user_ops.json` is still readable for backward compatibility
 
 By default, `load_user_ops("./my_ops.py", ...)` uses `my_ops` as namespace, so
 `my_op` becomes `my_ops.my_op`.
@@ -189,13 +202,41 @@ __JARVIS_OPERAS__ = {
 }
 ```
 
-## Curve publish/runtime cache (manifest + JSON sources)
+## Integration Contract (Jarvis-HEP / Jarvis-PLOT)
+
+Downstream modules should depend on JO public API only:
+
+- registry provider: `get_global_operas_registry()`
+- runtime calls: `call/acall`
+- lookup/introspection: `resolve_name/get/list/info`
+
+Avoid importing JO private modules or private symbols.
+
+## Function Docs Generation
+
+Function docs are generated from `OperaFunction.metadata`:
+
+```bash
+python scripts/generate_function_docs.py --out docs/functions
+```
+
+Generated artifacts:
+
+- `docs/functions/functions.json`
+- `docs/functions/<namespace>/<function>.md`
+
+## Curve publish/runtime cache (namespace manifests + JSON sources)
 
 Use this flow when you have many 1D interpolation curves and want runtime speed:
 
-1. Source of truth: `manifest.json` + per-curve JSON (`x`/`y` arrays)
+1. Source of truth:
+   - root index manifest (`interpolations.manifest.json`) with namespace list
+   - one manifest per namespace (function metadata list)
+   - per-function JSON source (`x`/`y` arrays)
 2. Precompile once: `jopera init` (bundled library) or `jopera init --manifest ./manifest.json` (custom)
-3. Runtime auto-registration: `get_global_registry()` registers hot curves as `interp.<curve_id>`
+   - optional: `jopera init --namespaces dmdd,interp1` for partial namespace processing
+   - optional maintenance: `jopera interp list|validate|add|remove`
+3. Runtime auto-registration: `get_global_operas_registry()` registers hot curves as `interp.<curve_id>`
 4. Runtime load path uses `index.json` + `*.pkl` only (no source JSON in hot path)
 
 Namespace rule for registered interpolation operators:
@@ -208,16 +249,35 @@ Bundled interpolation manifest library resource:
 
 - `jarvis_operas/manifests/interpolations.manifest.json`
 
-Minimal manifest example:
+Root index example:
 
 ```json
 {
-  "curves": [
+  "version": 2,
+  "kind": "jarvis_operas_interpolation_namespace_index",
+  "namespaces": [
     {
-      "curve_id": "demo_curve",
-      "source": "curves/demo_curve.json",
+      "namespace": "dmdd",
+      "manifest": "dmdd/dmdd.manifest.json"
+    }
+  ]
+}
+```
+
+Namespace manifest example:
+
+```json
+{
+  "namespace": "dmdd",
+  "functions": [
+    {
+      "name": "demo_curve",
+      "source": "dmdd/demo_curve.json",
       "kind": "linear",
-      "hot": true
+      "hot": true,
+      "metadata": {
+        "group": "dmdd"
+      }
     }
   ]
 }
@@ -253,20 +313,26 @@ funcs = {}
 updated = register_hot_curves(funcs)
 ```
 
+Interpolation functions support:
+- `numpy` backend: native callable
+- `polars` backend: `map_batches` fallback via `OperaFunction.return_dtype`
+- sync: `registry.call(...)`
+- async: `await registry.acall(...)`
+
 ## Built-in operators
 
 - `math.add(a, b)`
 - `stat.chi2_cov(residual, cov)`
-- `helper.eggbox(observables)` where `observables` must be `{"x": ..., "y": ...}` (scalar, NumPy, or Pandas)
+- `helper.eggbox(x, y)`
 - `math.identity(x)`
 
 All built-ins can be called via sync/async registry APIs and accept scalar, NumPy, and Pandas inputs where applicable.
-Built-ins also support `observables` dict input (Jarvis-HEP style), e.g.:
+Example:
 
 ```python
-registry.call("math.add", observables={"a": 1.0, "b": 2.0})
-registry.call("stat.chi2_cov", observables={"residual": [1.0, 0.0], "cov": [[2.0, 0.0], [0.0, 1.0]]})
-registry.call("helper.eggbox", observables={"x": 0.5, "y": 0.0})
+registry.call("math.add", a=1.0, b=2.0)
+registry.call("stat.chi2_cov", residual=[1.0, 0.0], cov=[[2.0, 0.0], [0.0, 1.0]])
+registry.call("helper.eggbox", x=0.5, y=0.0)
 ```
 
 ## Query registry for external UIs (JHEP/JPlot)
@@ -277,4 +343,34 @@ registry.list(namespace="math")
 registry.info("stat.chi2_cov")
 ```
 
-`registry.info(...)` returns metadata, signature, docstring summary, module/qualname, and async flag.
+`registry.info(...)` returns metadata, signature, docstring summary, backend support fields, and async flag.
+
+## Function docs generation (OperaFunction-driven)
+
+Jarvis-Operas can auto-generate per-function docs from `OperaFunction` declarations.
+
+```bash
+python scripts/generate_function_docs.py
+```
+
+Output is generated under `docs/functions/`:
+
+- `docs/functions/index.md`
+- `docs/functions/<namespace>/index.md`
+- `docs/functions/<namespace>/<function>.md`
+- `docs/functions/functions.json`
+
+Optional filters:
+
+```bash
+python scripts/generate_function_docs.py --namespaces math,stat
+python scripts/generate_function_docs.py --out docs/custom_functions
+```
+
+## Workspace clean
+
+Clean local cache/build artifacts:
+
+```bash
+./scripts/clean_workspace.sh
+```

@@ -57,7 +57,22 @@ class OperaFunction:
             normalized_flags = frozenset(str(flag) for flag in self.flags)
         object.__setattr__(self, "flags", normalized_flags)
 
-        object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata or {})))
+        metadata = dict(self.metadata or {})
+        supports_polars_native = self.polars_expr_impl is not None
+        supports_polars_fallback = self.numpy_impl is not None and self.return_dtype is not None
+        supports = {
+            "call": True,
+            "acall": True,
+            "numpy": self.numpy_impl is not None,
+            "polars": supports_polars_native or supports_polars_fallback,
+            "polars_native": supports_polars_native,
+            "polars_fallback": supports_polars_fallback,
+        }
+        metadata["supports"] = supports
+        metadata["supported_types"] = [
+            name for name in ("call", "acall", "numpy", "polars") if bool(supports.get(name))
+        ]
+        object.__setattr__(self, "metadata", MappingProxyType(metadata))
 
     @property
     def full_name(self) -> str:

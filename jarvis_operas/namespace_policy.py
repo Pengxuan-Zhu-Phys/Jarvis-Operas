@@ -12,6 +12,7 @@ _STATIC_PROTECTED_NAMESPACES = frozenset(
         "math",
         "stat",
         "helper",
+        "cmb",
         "interp",
         "core",
         "user",

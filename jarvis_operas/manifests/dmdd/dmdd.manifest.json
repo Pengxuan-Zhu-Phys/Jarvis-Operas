@@ -15,7 +15,10 @@
         "group": "dmdd",
         "mode": "x_log_y_log",
         "note": "LZ 2024 result of DM-Nucleon SI 90% C.L. upper limits. From https://arxiv.org/pdf/2410.17036",
-        "summary": "LZ 2024 SI 90% C.L. upper limit curve (arXiv:2410.17036)."
+        "summary": "LZ 2024 SI 90% C.L. upper limit curve (arXiv:2410.17036).",
+        "examples": [
+          "jopera call dmdd.LZSI2024 --kwargs '{\"x\":30.0}'"
+        ]
       }
     }
   ]

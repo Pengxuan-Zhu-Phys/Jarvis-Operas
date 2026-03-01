@@ -63,6 +63,23 @@ def _namespace_id_prefix(namespace: str) -> str:
     return "o"
 
 
+def _build_support_capabilities(declaration: OperaFunction) -> dict[str, bool]:
+    supports_polars = declaration.supports_polars_native or declaration.supports_polars_fallback
+    return {
+        "call": True,
+        "acall": True,
+        "numpy": declaration.supports_numpy,
+        "polars": supports_polars,
+        "polars_native": declaration.supports_polars_native,
+        "polars_fallback": declaration.supports_polars_fallback,
+    }
+
+
+def _supported_types_list(capabilities: Mapping[str, bool]) -> list[str]:
+    ordered = ("call", "acall", "numpy", "polars")
+    return [name for name in ordered if bool(capabilities.get(name))]
+
+
 class OperasRegistry:
     """Registry that stores and dispatches unified OperaFunction declarations."""
 
@@ -119,6 +136,9 @@ class OperasRegistry:
         full_name = declaration.full_name
 
         merged_metadata = dict(declaration.metadata)
+        support_caps = _build_support_capabilities(declaration)
+        merged_metadata["supports"] = support_caps
+        merged_metadata["supported_types"] = _supported_types_list(support_caps)
         if declaration.namespace == "helper":
             merged_metadata.setdefault("concurrent", True)
         if merged_metadata != dict(declaration.metadata):
@@ -230,6 +250,19 @@ class OperasRegistry:
         else:
             summary = doc_summary
 
+        raw_caps = metadata.get("supports")
+        if isinstance(raw_caps, Mapping):
+            capabilities = {str(k): bool(v) for k, v in raw_caps.items()}
+        else:
+            capabilities = _build_support_capabilities(declaration)
+        raw_supported_types = metadata.get("supported_types")
+        if isinstance(raw_supported_types, list) and all(
+            isinstance(item, str) and item.strip() for item in raw_supported_types
+        ):
+            supported_types = [item.strip() for item in raw_supported_types]
+        else:
+            supported_types = _supported_types_list(capabilities)
+
         return {
             "id": operator_id,
             "name": declaration.full_name,
@@ -245,6 +278,10 @@ class OperasRegistry:
             "docstring": summary,
             "is_async": declaration.is_numpy_async(),
             "supports_async": True,
+            "supports_call": bool(capabilities.get("call", True)),
+            "supports_acall": bool(capabilities.get("acall", True)),
+            "capabilities": capabilities,
+            "supported_types": supported_types,
         }
 
     def call(

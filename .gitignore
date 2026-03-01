@@ -194,6 +194,20 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+.pypirc.*
+
+# Private PyPI release workflow (local only)
+joerl
+MAINTAINING.md
+.twine/
+.twinerc
+twine.env
+release.env
+.pypi/
+.pypi-token
+.pypi-token.txt
+release/
+scripts/release*
 
 # Cursor
 #  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
@@ -207,3 +221,7 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 .DS_Store
+
+# JO internal working docs (keep out of VCS in this repo)
+docs/
+agent_maintenance/

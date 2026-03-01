@@ -99,7 +99,20 @@ def test_list_and_info() -> None:
     assert info["name"] == "script_ops.scale"
     assert info["signature"] == "(x: 'float', factor: 'float' = 2.0) -> 'float'"
     assert info["docstring"] == "Scale one value by a factor."
-    assert info["metadata"] == {"kind": "transform"}
+    assert info["metadata"]["kind"] == "transform"
+    assert info["metadata"]["supports"] == {
+        "call": True,
+        "acall": True,
+        "numpy": True,
+        "polars": False,
+        "polars_native": False,
+        "polars_fallback": False,
+    }
+    assert info["metadata"]["supported_types"] == ["call", "acall", "numpy"]
+    assert info["capabilities"]["numpy"] is True
+    assert info["capabilities"]["polars"] is False
+    assert info["supports_call"] is True
+    assert info["supports_acall"] is True
     assert info["is_async"] is False
     assert info["supports_async"] is True
 
