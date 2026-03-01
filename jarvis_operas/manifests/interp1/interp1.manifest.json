@@ -13,7 +13,10 @@
       "metadata": {
         "group": "interp1",
         "mode": "x_flat_y_flat",
-        "note": "placeholder points; replace with production data"
+        "note": "placeholder points; replace with production data",
+        "examples": [
+          "jopera call interp1.interp1_xy_flat --kwargs '{\"x\":1.0}'"
+        ]
       }
     },
     {
@@ -26,7 +29,10 @@
       "metadata": {
         "group": "interp1",
         "mode": "x_log_y_flat",
-        "note": "placeholder points; replace with production data"
+        "note": "placeholder points; replace with production data",
+        "examples": [
+          "jopera call interp1.interp1_xlog_yflat --kwargs '{\"x\":1.0}'"
+        ]
       }
     },
     {
@@ -39,7 +45,10 @@
       "metadata": {
         "group": "interp1",
         "mode": "x_flat_y_log",
-        "note": "placeholder points; replace with production data"
+        "note": "placeholder points; replace with production data",
+        "examples": [
+          "jopera call interp1.interp1_xflat_ylog --kwargs '{\"x\":1.0}'"
+        ]
       }
     },
     {
@@ -52,7 +61,10 @@
       "metadata": {
         "group": "interp1",
         "mode": "x_log_y_log",
-        "note": "placeholder points; replace with production data"
+        "note": "placeholder points; replace with production data",
+        "examples": [
+          "jopera call interp1.interp1_xy_log --kwargs '{\"x\":1.0}'"
+        ]
       }
     }
   ]

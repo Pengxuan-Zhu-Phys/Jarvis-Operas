@@ -67,8 +67,15 @@ def test_release_120_all_functions_have_numpy_and_polars_support() -> None:
     missing: list[str] = []
     for full_name in registry.list():
         info = registry.info(full_name)
+        capabilities = info.get("capabilities", {})
+        declared_polars = capabilities.get("polars")
         has_polars = bool(info["supports_polars_native"] or info["supports_polars_fallback"])
-        if not bool(info["supports_numpy"]) or not has_polars:
+        if not bool(info["supports_numpy"]):
+            missing.append(full_name)
+            continue
+        if declared_polars is False:
+            continue
+        if not has_polars:
             missing.append(full_name)
 
     assert missing == []

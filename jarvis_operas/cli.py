@@ -6,34 +6,28 @@ import difflib
 import json
 import sys
 import textwrap
+from collections.abc import Mapping
 from importlib.metadata import PackageNotFoundError, version as dist_version
+from pathlib import Path
 from typing import Any
 
 from .api import get_global_operas_registry
 from .core.registry import OperasRegistry
-from .core.spec import OperaFunction
 from .curves import (
-    add_interpolation_namespace,
     init_builtin_curve_cache,
     init_curve_cache,
     list_interpolation_namespace_entries,
     register_hot_curves_in_registry,
-    remove_interpolation_namespace,
     validate_interpolation_namespace_index,
 )
 from .errors import OperatorNotFound
 from .integration import refresh_sympy_dicts_if_global_registry
 from .loading import load_user_ops
 from .logging import configure_cli_logger
-from .mutation_policy import ensure_cli_write_allowed
 from .name_utils import try_split_full_name
 from .namespace_policy import ensure_user_namespace_allowed, is_protected_namespace
 from .persistence import (
     apply_persisted_overrides,
-    clear_persisted_function_overrides,
-    clear_persisted_namespace_overrides,
-    delete_persisted_function,
-    delete_persisted_namespace,
     get_overrides_store_path,
     get_sources_store_path,
     persist_user_ops,
@@ -112,7 +106,6 @@ def _advanced_card() -> str:
           -d, --debug         Enable debug logging (same as --log-mode debug)
           --user-ops PATH     Load operators from Python file (repeatable)
           --session-only      (load command) do not persist this source path
-          --session-only      (delete/update commands) do not persist override rules
           --arg key=value     Append call kwargs (JSON-decoded when possible)
           --kwargs JSON       Provide call kwargs as JSON object
           --backend BACKEND   call/acall backend: numpy|polars (default: numpy)
@@ -120,8 +113,6 @@ def _advanced_card() -> str:
           --json              Machine-readable output for supported commands
           init --force        Rebuild all curve cache pickle artifacts
           init --namespaces   Comma list of interpolation namespaces (e.g. dmdd,interp1)
-          write policy        User write path is only 'jopera load'
-          developer mode      Set JARVIS_OPERAS_DEV_WRITE=1 to enable developer write commands
 
         Example:
           jopera call my_ops.my_func --user-ops ./my_ops.py --arg x=1 --arg y=2 --log-mode debug
@@ -168,16 +159,40 @@ def _merge_kwargs(raw_json: str | None, key_values: list[tuple[str, Any]]) -> di
     return kwargs
 
 
+def _to_json_safe(value: Any) -> Any:
+    try:
+        import numpy as np  # type: ignore[import-not-found]
+    except Exception:  # pragma: no cover - numpy is expected but keep CLI resilient
+        np = None  # type: ignore[assignment]
+
+    if np is not None:
+        if isinstance(value, np.ndarray):
+            return [_to_json_safe(item) for item in value.tolist()]
+        if isinstance(value, np.generic):
+            return _to_json_safe(value.item())
+
+    if isinstance(value, Mapping):
+        return {str(key): _to_json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_json_safe(item) for item in value]
+    if isinstance(value, set):
+        return [_to_json_safe(item) for item in value]
+    if isinstance(value, Path):
+        return str(value)
+    return value
+
+
 def _print_value(value: Any, as_json: bool) -> None:
+    safe_value = _to_json_safe(value)
     if as_json:
-        print(json.dumps(value, ensure_ascii=False, indent=2, default=str))
+        print(json.dumps(safe_value, ensure_ascii=False, indent=2, default=str))
         return
 
-    if isinstance(value, (dict, list, tuple)):
-        print(json.dumps(value, ensure_ascii=False, indent=2, default=str))
+    if isinstance(safe_value, (dict, list, tuple)):
+        print(json.dumps(safe_value, ensure_ascii=False, indent=2, default=str))
         return
 
-    print(value)
+    print(safe_value)
 
 
 def _build_list_entries(registry, names: list[str]) -> list[dict[str, Any]]:
@@ -429,112 +444,6 @@ def _cmd_load(args: argparse.Namespace) -> int:
     return 0
 
 
-def _register_from_registry(
-    source_registry: OperasRegistry,
-    target_registry: OperasRegistry,
-    full_name: str,
-) -> None:
-    source_decl = source_registry.get(full_name)
-    target_registry.register(
-        OperaFunction(
-            namespace=source_decl.namespace,
-            name=source_decl.name,
-            arity=source_decl.arity,
-            return_dtype=source_decl.return_dtype,
-            numpy_impl=source_decl.numpy_impl,
-            polars_expr_impl=source_decl.polars_expr_impl,
-            flags=source_decl.flags,
-            metadata=dict(source_decl.metadata),
-        )
-    )
-
-
-def _cmd_update(args: argparse.Namespace) -> int:
-    ensure_cli_write_allowed("update")
-    registry = get_global_operas_registry()
-    _ensure_optional_user_namespace(
-        args.namespace,
-        action="CLI update namespace override",
-    )
-    staging = OperasRegistry()
-    loaded = load_user_ops(
-        args.path,
-        staging,
-        namespace=args.namespace,
-        refresh_sympy=False,
-    )
-
-    if args.function:
-        targets: list[str] = []
-        for full_name in loaded:
-            split = try_split_full_name(full_name)
-            if split is None:
-                continue
-            namespace, short_name = split
-            if short_name != args.function:
-                continue
-            if args.namespace is not None and namespace != args.namespace:
-                continue
-            targets.append(full_name)
-        if not targets:
-            raise ValueError(
-                f"Function '{args.function}' was not found in script '{args.path}'."
-            )
-        if len(targets) > 1:
-            raise ValueError(
-                f"Function '{args.function}' appears in multiple namespaces. "
-                "Use --namespace to disambiguate."
-            )
-    else:
-        targets = list(loaded)
-
-    if not args.function:
-        target_namespaces = sorted(
-            {
-                split[0]
-                for name in targets
-                for split in [try_split_full_name(name)]
-                if split is not None
-            }
-        )
-        for namespace in target_namespaces:
-            registry.delete_namespace(namespace)
-            if not args.session_only:
-                clear_persisted_namespace_overrides(namespace)
-    else:
-        target_namespaces = []
-
-    updated: list[str] = []
-    for full_name in targets:
-        if args.function:
-            try:
-                registry.delete(full_name)
-            except OperatorNotFound:
-                pass
-            if not args.session_only:
-                clear_persisted_function_overrides(full_name)
-                split = try_split_full_name(full_name)
-                if split is not None:
-                    clear_persisted_namespace_overrides(split[0])
-
-        _register_from_registry(staging, registry, full_name)
-        updated.append(full_name)
-
-    if not args.session_only:
-        persist_user_ops(args.path, namespace=args.namespace)
-
-    _refresh_global_registry_views(registry)
-    _print_value(
-        {
-            "updated": updated,
-            "mode": "function" if args.function else "namespace",
-            "session_only": bool(args.session_only),
-        },
-        as_json=True,
-    )
-    return 0
-
-
 def _cmd_help(args: argparse.Namespace) -> int:
     topic = args.topic or "examples"
     if topic == "examples":
@@ -619,88 +528,6 @@ def _cmd_interp_validate(args: argparse.Namespace) -> int:
             for item in errors:
                 print(f"- {item}")
     return 0 if bool(report.get("ok")) else 1
-
-
-def _cmd_interp_add(args: argparse.Namespace) -> int:
-    ensure_cli_write_allowed("interp add")
-    result = add_interpolation_namespace(
-        manifest_path=args.manifest,
-        namespace=args.namespace,
-        namespace_manifest=args.namespace_manifest,
-        description=args.description,
-        overwrite=bool(args.overwrite),
-    )
-    if args.json:
-        _print_value(result, as_json=True)
-        return 0
-
-    state = "added"
-    if result.get("updated"):
-        state = "updated"
-    if result.get("unchanged"):
-        state = "unchanged"
-    print(f"Namespace {state}: {result['namespace']}")
-    print(f"Manifest: {result['manifest_path']}")
-    return 0
-
-
-def _cmd_interp_remove(args: argparse.Namespace) -> int:
-    ensure_cli_write_allowed("interp remove")
-    result = remove_interpolation_namespace(
-        manifest_path=args.manifest,
-        namespace=args.namespace,
-    )
-    if args.json:
-        _print_value(result, as_json=True)
-    else:
-        if result.get("removed"):
-            print(f"Namespace removed: {result['namespace']}")
-        else:
-            print(f"Namespace not found: {result['namespace']}")
-        print(f"Manifest: {result['manifest_path']}")
-
-    if args.strict and not bool(result.get("removed")):
-        return 1
-    return 0
-
-
-def _cmd_delete_func(args: argparse.Namespace) -> int:
-    ensure_cli_write_allowed("delete-func")
-    registry = get_global_operas_registry()
-    resolved_full_name = registry.resolve_name(args.target)
-    split = try_split_full_name(resolved_full_name)
-    if split is not None and is_protected_namespace(split[0]):
-        raise ValueError(
-            f"namespace '{split[0]}' is protected and cannot be modified by delete-func"
-        )
-    registry.delete(args.target)
-    if not args.session_only:
-        delete_persisted_function(resolved_full_name)
-    _refresh_global_registry_views(registry)
-    _print_value({"deleted": resolved_full_name, "session_only": bool(args.session_only)}, as_json=True)
-    return 0
-
-
-def _cmd_delete_namespace(args: argparse.Namespace) -> int:
-    ensure_cli_write_allowed("delete-namespace")
-    ensure_user_namespace_allowed(
-        args.namespace,
-        action="CLI delete-namespace",
-    )
-    registry = get_global_operas_registry()
-    deleted = registry.delete_namespace(args.namespace)
-    if not args.session_only:
-        delete_persisted_namespace(args.namespace)
-    _refresh_global_registry_views(registry)
-    _print_value(
-        {
-            "namespace": args.namespace,
-            "deleted": deleted,
-            "session_only": bool(args.session_only),
-        },
-        as_json=True,
-    )
-    return 0
 
 
 def _add_source_args(parser: argparse.ArgumentParser) -> None:
@@ -915,114 +742,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output JSON validation report.",
     )
     parser_interp_validate.set_defaults(func=_cmd_interp_validate)
-
-    parser_interp_add = interp_subparsers.add_parser(
-        "add",
-        help="Add one interpolation namespace entry to root manifest index",
-    )
-    parser_interp_add.add_argument(
-        "--manifest",
-        required=True,
-        help="Writable root interpolation manifest index path.",
-    )
-    parser_interp_add.add_argument(
-        "namespace",
-        help="Namespace to add, e.g. dmdd.",
-    )
-    parser_interp_add.add_argument(
-        "namespace_manifest",
-        help="Namespace manifest path or ref, relative to root manifest directory.",
-    )
-    parser_interp_add.add_argument(
-        "--description",
-        default=None,
-        help="Optional namespace description.",
-    )
-    parser_interp_add.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="Replace existing namespace entry when namespace already exists.",
-    )
-    parser_interp_add.add_argument(
-        "--json",
-        action="store_true",
-        help="Output JSON summary.",
-    )
-    parser_interp_add.set_defaults(func=_cmd_interp_add)
-
-    parser_interp_remove = interp_subparsers.add_parser(
-        "remove",
-        help="Remove one interpolation namespace entry from root manifest index",
-    )
-    parser_interp_remove.add_argument(
-        "--manifest",
-        required=True,
-        help="Writable root interpolation manifest index path.",
-    )
-    parser_interp_remove.add_argument(
-        "namespace",
-        help="Namespace to remove.",
-    )
-    parser_interp_remove.add_argument(
-        "--strict",
-        action="store_true",
-        help="Return non-zero when namespace does not exist.",
-    )
-    parser_interp_remove.add_argument(
-        "--json",
-        action="store_true",
-        help="Output JSON summary.",
-    )
-    parser_interp_remove.set_defaults(func=_cmd_interp_remove)
-
-    parser_update = subparsers.add_parser(
-        "update",
-        help="Update functions from a Python file (default: whole namespace)",
-    )
-    parser_update.add_argument("path", help="Path to Python file")
-    _add_log_mode_arg(parser_update)
-    parser_update.add_argument(
-        "--namespace",
-        default=None,
-        help="Override namespace. Default derives from script filename.",
-    )
-    parser_update.add_argument(
-        "--function",
-        default=None,
-        help="Only update one function short name from this script.",
-    )
-    parser_update.add_argument(
-        "--session-only",
-        action="store_true",
-        help="Update only for this process. Skip persistent override updates.",
-    )
-    parser_update.set_defaults(func=_cmd_update)
-
-    parser_delete_func = subparsers.add_parser(
-        "delete-func",
-        help="Delete one function by full name or id",
-    )
-    _add_log_mode_arg(parser_delete_func)
-    parser_delete_func.add_argument("target", help="Full function name or function id")
-    parser_delete_func.add_argument(
-        "--session-only",
-        action="store_true",
-        help="Delete only for this process. Skip persistent deletion rule.",
-    )
-    parser_delete_func.set_defaults(func=_cmd_delete_func)
-
-    parser_delete_namespace = subparsers.add_parser(
-        "delete-namespace",
-        help="Delete all functions in a namespace",
-    )
-    _add_log_mode_arg(parser_delete_namespace)
-    parser_delete_namespace.add_argument("namespace", help="Namespace to delete")
-    parser_delete_namespace.add_argument(
-        "--session-only",
-        action="store_true",
-        help="Delete only for this process. Skip persistent deletion rule.",
-    )
-    parser_delete_namespace.set_defaults(func=_cmd_delete_namespace)
 
     parser_help = subparsers.add_parser(
         "help",

@@ -8,6 +8,8 @@ import sys
 import textwrap
 from pathlib import Path
 
+import numpy as np
+
 from jarvis_operas import cli as cli_mod
 
 
@@ -65,7 +67,9 @@ def test_cli_help_does_not_show_discover() -> None:
 
     assert result.returncode == 0, result.stderr
     assert "discover" not in result.stdout
-    assert "update" in result.stdout
+    assert "update" not in result.stdout
+    assert "delete-func" not in result.stdout
+    assert "delete-namespace" not in result.stdout
 
 
 def test_cli_call_add_with_kwargs() -> None:
@@ -199,6 +203,22 @@ def test_print_info_human_without_examples_hides_try_next(capsys) -> None:
     assert "UserOverrides:\t" not in out
 
 
+def test_print_info_human_cmb_namespace_hides_user_store_paths(capsys) -> None:
+    info = {
+        "name": "cmb.loglike",
+        "id": "c12345",
+        "namespace": "cmb",
+        "signature": "(payload=None, **params)",
+        "supports_async": True,
+        "docstring": "Evaluate CMB TT log-likelihood.",
+        "metadata": {},
+    }
+    cli_mod._print_info_human(info)
+    out = capsys.readouterr().out
+    assert "UserSources:\t" not in out
+    assert "UserOverrides:\t" not in out
+
+
 def test_print_info_human_user_function_shows_user_store_paths(capsys, monkeypatch, tmp_path) -> None:
     sources_path = tmp_path / "sources.json"
     overrides_path = tmp_path / "overrides.json"
@@ -218,6 +238,20 @@ def test_print_info_human_user_function_shows_user_store_paths(capsys, monkeypat
     out = capsys.readouterr().out
     assert f"UserSources:\t{sources_path}" in out
     assert f"UserOverrides:\t{overrides_path}" in out
+
+
+def test_print_value_serializes_numpy_arrays_as_json_arrays(capsys) -> None:
+    cli_mod._print_value(
+        {
+            "model_cl": np.array([1.0, 2.0, 3.0]),
+            "meta": {"n": np.int64(3)},
+        },
+        as_json=False,
+    )
+    out = capsys.readouterr().out
+    payload = json.loads(out)
+    assert payload["model_cl"] == [1.0, 2.0, 3.0]
+    assert payload["meta"]["n"] == 3
 
 
 def test_cli_load_persists_for_new_process(tmp_path) -> None:
@@ -283,127 +317,6 @@ def test_cli_load_session_only_does_not_persist(tmp_path) -> None:
     second = _run_cli("call", "ephemeral_cli_ops.plus_two", "--arg", "x=10", env=env)
     assert second.returncode == 1
     assert "not found" in second.stderr
-
-
-def test_cli_update_function_from_script_and_delete_func(tmp_path) -> None:
-    op_file = tmp_path / "func_manage_ops.py"
-    op_file.write_text(
-        textwrap.dedent(
-            """
-            def plus_three(x):
-                return x + 3
-
-            __JARVIS_OPERAS__ = {
-                "plus_three": plus_three,
-            }
-            """
-        ),
-        encoding="utf-8",
-    )
-    store_path = tmp_path / "persist_store.json"
-    env = {
-        "JARVIS_OPERAS_PERSIST_FILE": str(store_path),
-        "JARVIS_OPERAS_DEV_WRITE": "1",
-    }
-
-    load_result = _run_cli("load", str(op_file), env=env)
-    assert load_result.returncode == 0, load_result.stderr
-
-    # Change script implementation, then update only this function from script.
-    op_file.write_text(
-        textwrap.dedent(
-            """
-            def plus_three(x):
-                return x + 10
-
-            __JARVIS_OPERAS__ = {
-                "plus_three": plus_three,
-            }
-            """
-        ),
-        encoding="utf-8",
-    )
-    update_result = _run_cli(
-        "update",
-        str(op_file),
-        "--function",
-        "plus_three",
-        env=env,
-    )
-    assert update_result.returncode == 0, update_result.stderr
-
-    call_new = _run_cli("call", "func_manage_ops.plus_three", "--arg", "x=1", env=env)
-    assert call_new.returncode == 0, call_new.stderr
-    assert call_new.stdout.strip() == "11"
-
-    info_result = _run_cli("info", "func_manage_ops.plus_three", "--json", env=env)
-    assert info_result.returncode == 0, info_result.stderr
-    payload = json.loads(info_result.stdout)
-    operator_id = payload["id"]
-
-    delete_builtin = _run_cli("delete-func", operator_id, env=env)
-    assert delete_builtin.returncode == 0, delete_builtin.stderr
-
-    call_deleted = _run_cli("call", "func_manage_ops.plus_three", "--arg", "x=1", env=env)
-    assert call_deleted.returncode == 1
-    assert "not found" in call_deleted.stderr
-
-
-def test_cli_update_namespace_from_script_and_delete_namespace(tmp_path) -> None:
-    op_file = tmp_path / "ns_manage_ops.py"
-    op_file.write_text(
-        textwrap.dedent(
-            """
-            def square(x):
-                return x * x
-
-            __JARVIS_OPERAS__ = {
-                "square": square,
-            }
-            """
-        ),
-        encoding="utf-8",
-    )
-    store_path = tmp_path / "persist_store.json"
-    env = {
-        "JARVIS_OPERAS_PERSIST_FILE": str(store_path),
-        "JARVIS_OPERAS_DEV_WRITE": "1",
-    }
-
-    load_result = _run_cli("load", str(op_file), env=env)
-    assert load_result.returncode == 0, load_result.stderr
-
-    # Change script implementation, then update whole namespace from script.
-    op_file.write_text(
-        textwrap.dedent(
-            """
-            def square(x):
-                return x * x * x
-
-            __JARVIS_OPERAS__ = {
-                "square": square,
-            }
-            """
-        ),
-        encoding="utf-8",
-    )
-    update_result = _run_cli(
-        "update",
-        str(op_file),
-        env=env,
-    )
-    assert update_result.returncode == 0, update_result.stderr
-
-    call_new = _run_cli("call", "ns_manage_ops.square", "--arg", "x=3", env=env)
-    assert call_new.returncode == 0, call_new.stderr
-    assert call_new.stdout.strip() == "27"
-
-    delete_ns = _run_cli("delete-namespace", "ns_manage_ops", env=env)
-    assert delete_ns.returncode == 0, delete_ns.stderr
-
-    call_deleted = _run_cli("call", "ns_manage_ops.square", "--arg", "x=3", env=env)
-    assert call_deleted.returncode == 1
-    assert "not found" in call_deleted.stderr
 
 
 def test_cli_init_curve_cache(tmp_path) -> None:
@@ -653,26 +566,6 @@ def test_cli_load_rejects_protected_namespace_override(tmp_path) -> None:
     assert "protected" in result.stderr.lower()
 
 
-def test_cli_delete_namespace_rejects_protected_namespace() -> None:
-    result = _run_cli(
-        "delete-namespace",
-        "math",
-        env={"JARVIS_OPERAS_DEV_WRITE": "1"},
-    )
-    assert result.returncode == 1
-    assert "protected" in result.stderr.lower()
-
-
-def test_cli_delete_func_rejects_protected_namespace_function() -> None:
-    result = _run_cli(
-        "delete-func",
-        "math.add",
-        env={"JARVIS_OPERAS_DEV_WRITE": "1"},
-    )
-    assert result.returncode == 1
-    assert "protected" in result.stderr.lower()
-
-
 def test_cli_interp_list_and_validate_packaged_manifest() -> None:
     list_result = _run_cli("interp", "list", "--json")
     assert list_result.returncode == 0, list_result.stderr
@@ -686,122 +579,18 @@ def test_cli_interp_list_and_validate_packaged_manifest() -> None:
     assert validate_payload["namespace_count"] >= 1
 
 
-def test_cli_interp_add_remove_validate_roundtrip(tmp_path) -> None:
-    curve_dir = tmp_path / "source"
-    curve_dir.mkdir()
-    (curve_dir / "x.json").write_text(
-        json.dumps({"x": [0.0, 1.0], "y": [1.0, 2.0]}),
-        encoding="utf-8",
-    )
-
-    root_manifest = tmp_path / "interpolations.manifest.json"
-    root_manifest.write_text(
-        json.dumps(
-            {
-                "version": 2,
-                "kind": "jarvis_operas_interpolation_namespace_index",
-                "namespaces": [],
-            }
-        ),
-        encoding="utf-8",
-    )
-    namespace_manifest = tmp_path / "beta.manifest.json"
-    namespace_manifest.write_text(
-        json.dumps(
-            {
-                "namespace": "beta",
-                "functions": [
-                    {"name": "beta_curve", "source": "source/x.json", "kind": "linear", "hot": True}
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    add_result = _run_cli(
-        "interp",
-        "add",
-        "--manifest",
-        str(root_manifest),
-        "beta",
-        "beta.manifest.json",
-        "--description",
-        "beta ns",
-        "--json",
-        env={"JARVIS_OPERAS_DEV_WRITE": "1"},
-    )
-    assert add_result.returncode == 0, add_result.stderr
-    add_payload = json.loads(add_result.stdout)
-    assert add_payload["added"] is True
-
-    list_result = _run_cli(
-        "interp",
-        "list",
-        "--manifest",
-        str(root_manifest),
-        "--json",
-    )
-    assert list_result.returncode == 0, list_result.stderr
-    list_payload = json.loads(list_result.stdout)
-    assert any(item["namespace"] == "beta" for item in list_payload["namespaces"])
-
-    validate_result = _run_cli(
-        "interp",
-        "validate",
-        "--manifest",
-        str(root_manifest),
-        "--json",
-    )
-    assert validate_result.returncode == 0, validate_result.stderr
-    validate_payload = json.loads(validate_result.stdout)
-    assert validate_payload["ok"] is True
-    assert validate_payload["namespace_count"] == 1
-    assert validate_payload["function_count"] == 1
-
-    remove_result = _run_cli(
-        "interp",
-        "remove",
-        "--manifest",
-        str(root_manifest),
-        "beta",
-        "--json",
-        env={"JARVIS_OPERAS_DEV_WRITE": "1"},
-    )
-    assert remove_result.returncode == 0, remove_result.stderr
-    remove_payload = json.loads(remove_result.stdout)
-    assert remove_payload["removed"] is True
-
-    strict_missing = _run_cli(
-        "interp",
-        "remove",
-        "--manifest",
-        str(root_manifest),
-        "beta",
-        "--strict",
-        env={"JARVIS_OPERAS_DEV_WRITE": "1"},
-    )
-    assert strict_missing.returncode == 1
-
-
-def test_cli_write_commands_blocked_without_dev_mode(tmp_path) -> None:
+def test_cli_removed_mutation_commands_are_unrecognized(tmp_path) -> None:
     script_path = tmp_path / "ops.py"
-    script_path.write_text(
-        textwrap.dedent(
-            """
-            def foo(x):
-                return x
+    script_path.write_text("def foo(x):\n    return x\n", encoding="utf-8")
 
-            __JARVIS_OPERAS__ = {
-                "foo": foo,
-            }
-            """
-        ),
-        encoding="utf-8",
-    )
-    update_result = _run_cli("update", str(script_path))
-    assert update_result.returncode == 1
-    assert "supported user write path is 'jopera load'" in update_result.stderr.lower()
-
-    delete_result = _run_cli("delete-func", "math.add")
-    assert delete_result.returncode == 1
-    assert "supported user write path is 'jopera load'" in delete_result.stderr.lower()
+    removed_invocations = [
+        ("update", str(script_path)),
+        ("delete-func", "math.add"),
+        ("delete-namespace", "math"),
+        ("interp", "add", "--manifest", str(tmp_path / "manifest.json"), "ns", "ns.json"),
+        ("interp", "remove", "--manifest", str(tmp_path / "manifest.json"), "ns"),
+    ]
+    for cmd in removed_invocations:
+        result = _run_cli(*cmd)
+        assert result.returncode != 0
+        assert "invalid choice" in result.stderr

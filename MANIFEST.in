@@ -1,1 +1,2 @@
 recursive-include jarvis_operas/manifests *.json
+recursive-include jarvis_operas/models *.pkl *.md *.txt
