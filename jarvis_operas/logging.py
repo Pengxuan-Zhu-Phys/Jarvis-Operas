@@ -89,8 +89,9 @@ def _configure_default_logger(mode: str) -> None:
                 pass
             _SINK_ID = None
 
+        # Keep operational logs off stdout so CLI JSON / value output stays clean.
         _SINK_ID = _default_logger.add(
-            sys.stdout,
+            sys.stderr,
             format=_custom_format,
             colorize=True,
             enqueue=True,

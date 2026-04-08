@@ -18,8 +18,8 @@ from jarvis_operas.namespaces.cmb.defs.core import (
 def _manual_loglike(data_cl, model_cl, ell):
     data = np.asarray(data_cl, dtype=float)
     model = np.asarray(model_cl, dtype=float)
-    l = np.asarray(ell, dtype=float)
-    prefactor = 2.0 * l + 1.0
+    ell_values = np.asarray(ell, dtype=float)
+    prefactor = 2.0 * ell_values + 1.0
     x = prefactor * data / model
     return float(-0.5 * (-2.0 * chi2(prefactor).logpdf(x) - 2.0 * np.log(prefactor / model)).sum())
 

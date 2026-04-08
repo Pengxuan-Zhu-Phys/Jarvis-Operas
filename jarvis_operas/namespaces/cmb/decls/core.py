@@ -32,11 +32,21 @@ CMB_CORE_DECLARATIONS: tuple[OperaFunction, ...] = (
                 "polars": "unsupported",
             },
             "examples": [
-                "python -c \"from jarvis_operas.api import get_global_operas_registry as g; r=g(); m=r.call('cmb.tt_cosmopower',omegabh2=0.022,omegach2=0.12,tau=0.055,ns=0.965,As=3.0,h=0.67)['model_cl']; print(r.call('cmb.loglike',model_cl=m))\"",
+                (
+                    "python -c \"from jarvis_operas.api import get_global_operas_registry as g; "
+                    "r=g(); m=r.call('cmb.tt_cosmopower',omegabh2=0.022,omegach2=0.12,"
+                    "tau=0.055,ns=0.965,As=3.0,h=0.67)['model_cl']; "
+                    "print(r.call('cmb.loglike',model_cl=m))\""
+                ),
             ],
             "since": "1.3.x",
             "tags": ["cmb", "likelihood", "cosmology"],
-            "note": "Source: https://github.com/htjb/cmb-likelihood (cmblike/cmb.py + data/TT_power_spec.txt), adapted with JO internal Planck TT dataset on fixed 111-point l_center grid. Constraints: model_cl/noise_cl must match length 111; do not pass ell/l/data/data_cl/bins.",
+            "note": (
+                "Source: https://github.com/htjb/cmb-likelihood (cmblike/cmb.py + "
+                "data/TT_power_spec.txt), adapted with JO internal Planck TT dataset "
+                "on fixed 111-point l_center grid. Constraints: model_cl/noise_cl "
+                "must match length 111; do not pass ell/l/data/data_cl/bins."
+            ),
         },
     ),
     OperaFunction(
@@ -64,11 +74,20 @@ CMB_CORE_DECLARATIONS: tuple[OperaFunction, ...] = (
                 "polars": "unsupported",
             },
             "examples": [
-                "jopera call cmb.tt_cosmopower --kwargs '{\"omegabh2\":0.022,\"omegach2\":0.12,\"tau\":0.055,\"ns\":0.965,\"As\":3.0,\"h\":0.67}'",
+                (
+                    "jopera call cmb.tt_cosmopower --kwargs "
+                    "'{\"omegabh2\":0.022,\"omegach2\":0.12,\"tau\":0.055,"
+                    "\"ns\":0.965,\"As\":3.0,\"h\":0.67}'"
+                ),
             ],
             "since": "1.3.x",
             "tags": ["cmb", "model", "cosmopower", "lcdm"],
-            "note": "Source: https://github.com/htjb/cmb-likelihood (cmblike/cmb.py:get_cosmopower_model), adapted with JO-bundled model path, internal numpy forward pass, and Planck 111-point grid projection. Compatibility: ell_min/ell_max are accepted but ignored.",
+            "note": (
+                "Source: https://github.com/htjb/cmb-likelihood "
+                "(cmblike/cmb.py:get_cosmopower_model), adapted with JO-bundled "
+                "model path, internal numpy forward pass, and Planck 111-point grid "
+                "projection. Compatibility: ell_min/ell_max are accepted but ignored."
+            ),
         },
     ),
 )
