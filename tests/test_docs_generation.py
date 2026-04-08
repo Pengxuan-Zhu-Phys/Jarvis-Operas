@@ -27,6 +27,12 @@ def test_generate_function_docs_script(tmp_path) -> None:
     assert any(item["full_name"] == "math.add" for item in index_payload)
     assert any(item["full_name"] == "interp1.interp1_xy_flat" for item in index_payload)
     assert any(item["full_name"] == "dmdd.LZSI2024" for item in index_payload)
+    assert any(item["full_name"] == "dmdd.XENONnTSI2025" for item in index_payload)
+    assert any(item["full_name"] == "dmdd.LZSDp2024" for item in index_payload)
+    assert any(item["full_name"] == "dmdd.XENONnTSDp2025Combined" for item in index_payload)
+    assert any(item["full_name"] == "dmdd.LZSDn2024" for item in index_payload)
+    assert any(item["full_name"] == "dmdd.XENONnTSDn2025" for item in index_payload)
+    assert any(item["full_name"] == "dmdd.CDMSSDn2010" for item in index_payload)
 
     math_add_page = out_dir / "math" / "add.md"
     assert math_add_page.is_file()
@@ -36,3 +42,10 @@ def test_generate_function_docs_script(tmp_path) -> None:
 
     assert (out_dir / "interp1" / "interp1_xy_flat.md").is_file()
     assert (out_dir / "dmdd" / "LZSI2024.md").is_file()
+    assert (out_dir / "dmdd" / "XENONnTSI2025.md").is_file()
+    assert (out_dir / "dmdd" / "PandaXSI2024.md").is_file()
+    assert (out_dir / "dmdd" / "LZSDp2024.md").is_file()
+    assert (out_dir / "dmdd" / "XENONnTSDp2025Combined.md").is_file()
+    assert (out_dir / "dmdd" / "LZSDn2024.md").is_file()
+    assert (out_dir / "dmdd" / "XENONnTSDn2025.md").is_file()
+    assert (out_dir / "dmdd" / "CDMSSDn2010.md").is_file()

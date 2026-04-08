@@ -252,9 +252,38 @@ def test_init_curve_cache_can_filter_namespaces(tmp_path) -> None:
         namespaces=["dmdd"],
         force=True,
     )
-    assert summary["total"] == 1
+    expected = {
+        "LZSI2024",
+        "XENONnTSI2025",
+        "XENON1TMigdalSI2019",
+        "PandaXSI2024",
+        "CRESSTSI2019",
+        "DarkSide50SI2022",
+        "EDELWEISSSI2016",
+        "DEAP3600SI2019",
+        "PICO60SI2019",
+        "COSINE100SI2018",
+        "NEWSGSI2017",
+        "LZSDp2024",
+        "PICASSOSDp2012",
+        "PICO60SDp2019",
+        "CRESSTSDp2022",
+        "XENONnTSDp2025",
+        "PandaXSDp2024",
+        "COUPPSDp2012",
+        "NEWSGSDp2024",
+        "XENONnTSDp2025Combined",
+        "LZSDn2024",
+        "XENONnTSDn2025",
+        "PandaXSDn2024",
+        "CDMSSDn2010",
+        "CRESSTSDn2022",
+        "CDMSliteSDn2019",
+        "XENON1TMigdalSDn2019",
+    }
+    assert summary["total"] >= len(expected)
     table = load_hot_curve_function_table(index_path=str(index_path))
-    assert set(table.keys()) == {"LZSI2024"}
+    assert expected.issubset(set(table.keys()))
 
 
 def test_register_hot_curves_in_registry_uses_group_namespace_and_updates(tmp_path) -> None:
@@ -833,6 +862,11 @@ def test_dmdd_curve_returns_nan_on_out_of_bounds_and_nan_input() -> None:
         registry = OperasRegistry()
         loaded = register_hot_curves_in_registry(registry, index_path=str(temp_index))
         assert "dmdd.LZSI2024" in loaded
+        assert "dmdd.XENONnTSI2025" in loaded
+        assert "dmdd.LZSDp2024" in loaded
+        assert "dmdd.XENONnTSDp2025Combined" in loaded
+        assert "dmdd.LZSDn2024" in loaded
+        assert "dmdd.XENONnTSDn2025" in loaded
 
         scalar = registry.call("dmdd.LZSI2024", x=1.0)
         assert np.isnan(float(scalar))

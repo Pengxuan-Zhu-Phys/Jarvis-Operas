@@ -23,6 +23,12 @@ def test_catalog_can_load_interpolation_namespaces_on_demand() -> None:
 
     assert "interp1.interp1_xy_flat" in names
     assert "dmdd.LZSI2024" in names
+    assert "dmdd.XENONnTSI2025" in names
+    assert "dmdd.LZSDp2024" in names
+    assert "dmdd.XENONnTSDp2025Combined" in names
+    assert "dmdd.LZSDn2024" in names
+    assert "dmdd.XENONnTSDn2025" in names
+    assert "dmdd.CDMSSDn2010" in names
 
 
 def test_catalog_rejects_unknown_namespace() -> None:
