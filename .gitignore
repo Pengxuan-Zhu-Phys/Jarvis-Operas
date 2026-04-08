@@ -201,6 +201,7 @@ cython_debug/
 # Private PyPI release workflow (local only)
 joerl
 MAINTAINING.md
+!MAINTAINING.md
 .twine/
 .twinerc
 twine.env
@@ -225,5 +226,7 @@ __marimo__/
 .DS_Store
 
 # JO internal working docs (keep out of VCS in this repo)
-docs/
+docs/*
+!docs/architecture.md
+!docs/migration.md
 agent_maintenance/
