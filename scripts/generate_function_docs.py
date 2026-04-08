@@ -5,9 +5,14 @@ import argparse
 import inspect
 import json
 import shutil
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if (_REPO_ROOT / "jarvis_operas").is_dir():
+    sys.path.insert(0, str(_REPO_ROOT))
 
 from jarvis_operas.catalog import get_catalog_declarations
 from jarvis_operas.core.spec import OperaFunction
