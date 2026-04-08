@@ -11,7 +11,7 @@ def eggbox_numpy(x, y, logger=None, **_params):
     if logger is not None:
         logger.info("EggBox input loaded: x -> {}, y -> {}", x_values, y_values)
 
-    z = (np.sin(np.pi * x_values) * np.cos(np.pi * y_values) + 2.0) ** 5
+    z = (np.sin(x_values) * np.cos(y_values) + 2.0) ** 5
 
     if logger is not None:
         logger.debug("EggBox called: z -> {}", z)
@@ -26,7 +26,7 @@ def eggbox2d_numpy(x, y, logger=None, **_params):
 
 
 def eggbox_polars_expr(x, y, **_params):
-    return ((x * np.pi).sin() * (y * np.pi).cos() + 2.0) ** 5
+    return (x.sin() * y.cos() + 2.0) ** 5
 
 
 def eggbox2d_polars_expr(x, y, **_params):

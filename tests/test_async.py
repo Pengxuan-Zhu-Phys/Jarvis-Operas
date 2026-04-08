@@ -189,7 +189,7 @@ def test_builtin_ops_support_numpy_and_pandas_async() -> None:
     assert isinstance(add_pd, pd.Series)
     assert np.allclose(add_pd.to_numpy(), np.array([4.0, 6.0]))
     assert isinstance(egg_pd, pd.Series)
-    assert np.allclose(egg_pd.to_numpy(), np.array([32.0, 243.0]))
+    assert np.allclose(egg_pd.to_numpy(), np.array([32.0, 93.70340035799192]))
     assert isinstance(chi2_pd, pd.Series)
     assert np.allclose(chi2_pd.to_numpy(), np.array([0.5]))
 
@@ -217,4 +217,4 @@ def test_builtin_ops_support_scalar_kwargs_async() -> None:
     assert add_value == pytest.approx(3.0)
     assert identity_value == pytest.approx(3.0)
     assert chi2_value == pytest.approx(0.5)
-    assert egg_value == pytest.approx(243.0)
+    assert egg_value == pytest.approx(93.70340035799192)
