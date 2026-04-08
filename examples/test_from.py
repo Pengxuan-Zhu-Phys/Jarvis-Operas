@@ -11,8 +11,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if (_REPO_ROOT / "jarvis_operas").is_dir():
     sys.path.insert(0, str(_REPO_ROOT))
 
-import sympy as sp
-from sympy.utilities.lambdify import lambdify
+import sympy as sp  # noqa: E402
+from sympy.utilities.lambdify import lambdify  # noqa: E402
 
 
 def _parse_set_args(items: list[str]) -> dict[str, Any]:
