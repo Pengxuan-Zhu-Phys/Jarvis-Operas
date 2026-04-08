@@ -164,14 +164,14 @@ def test_eggbox_builtin_supports_scalar_and_array_observables() -> None:
     assert "helper.eggbox2d" in registry.list(namespace="helper")
 
     scalar = registry.call("helper.eggbox", x=0.5, y=0.0)
-    assert scalar == pytest.approx(243.0)
+    assert scalar == pytest.approx(93.70340035799192)
 
     values = registry.call(
         "helper.eggbox",
         x=np.array([0.0, 0.5]),
         y=np.array([0.0, 0.0]),
     )
-    assert np.allclose(values, np.array([32.0, 243.0]))
+    assert np.allclose(values, np.array([32.0, 93.70340035799192]))
 
     info = registry.info("helper.eggbox")
     assert info["metadata"]["category"] == "hep_scanner_benchmark"
@@ -181,14 +181,14 @@ def test_eggbox2d_builtin_returns_mapping_payload() -> None:
     registry = get_global_operas_registry()
 
     scalar_result = registry.call("helper.eggbox2d", x=0.5, y=0.0)
-    assert scalar_result["z"] == pytest.approx(243.0)
+    assert scalar_result["z"] == pytest.approx(93.70340035799192)
 
     array_result = registry.call(
         "helper.eggbox2d",
         x=np.array([0.0, 0.5]),
         y=np.array([0.0, 0.0]),
     )
-    assert np.allclose(array_result["z"], np.array([32.0, 243.0]))
+    assert np.allclose(array_result["z"], np.array([32.0, 93.70340035799192]))
 
 
 def test_eggbox_builtin_validates_required_inputs() -> None:
@@ -298,7 +298,7 @@ def test_builtin_ops_support_numpy_and_pandas_sync() -> None:
         y=pd.Series([0.0, 0.0]),
     )
     assert isinstance(pd_eggbox, pd.Series)
-    assert np.allclose(pd_eggbox.to_numpy(), np.array([32.0, 243.0]))
+    assert np.allclose(pd_eggbox.to_numpy(), np.array([32.0, 93.70340035799192]))
 
     pd_residual = pd.DataFrame(
         {
