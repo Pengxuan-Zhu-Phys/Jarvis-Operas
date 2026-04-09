@@ -237,7 +237,8 @@ def test_packaged_interpolation_manifest_sources_exist() -> None:
 def test_list_interpolation_namespaces_works() -> None:
     namespaces = list_interpolation_namespaces()
     assert "interp1" in namespaces
-    assert "dmdd" in namespaces
+    assert "dmddxn" in namespaces
+    assert "dmddxe" in namespaces
 
 
 def test_init_curve_cache_can_filter_namespaces(tmp_path) -> None:
@@ -249,7 +250,7 @@ def test_init_curve_cache_can_filter_namespaces(tmp_path) -> None:
     summary = init_curve_cache(
         str(manifest_path),
         index_path=str(index_path),
-        namespaces=["dmdd"],
+        namespaces=["dmddxn"],
         force=True,
     )
     expected = {
@@ -318,7 +319,7 @@ def test_register_hot_curves_in_registry_uses_group_namespace_and_updates(tmp_pa
     assert first == ["interp.LZSI2024"]
     assert "interp.LZSI2024" in registry.list(namespace="interp")
 
-    # Move group to dmdd and re-init; registry update should replace old namespace item.
+    # Move group to dmddxn and re-init; registry update should replace old namespace item.
     manifest_path.write_text(
         json.dumps(
             {
@@ -330,7 +331,7 @@ def test_register_hot_curves_in_registry_uses_group_namespace_and_updates(tmp_pa
                         "logX": True,
                         "logY": True,
                         "hot": True,
-                        "metadata": {"group": "dmdd"},
+                        "metadata": {"group": "dmddxn"},
                     }
                 ]
             }
@@ -339,8 +340,8 @@ def test_register_hot_curves_in_registry_uses_group_namespace_and_updates(tmp_pa
     )
     init_curve_cache(str(manifest_path), cache_root=str(cache_root))
     second = register_hot_curves_in_registry(registry, cache_root=str(cache_root))
-    assert second == ["dmdd.LZSI2024"]
-    assert "dmdd.LZSI2024" in registry.list(namespace="dmdd")
+    assert second == ["dmddxn.LZSI2024"]
+    assert "dmddxn.LZSI2024" in registry.list(namespace="dmddxn")
     assert registry.list(namespace="interp") == []
 
 
@@ -361,7 +362,7 @@ def test_register_hot_curves_in_registry_overwrite_keeps_non_interpolation_same_
                         "source": "source/curve.json",
                         "kind": "linear",
                         "hot": True,
-                        "metadata": {"group": "dmdd"},
+                        "metadata": {"group": "dmddxn"},
                     }
                 ]
             }
@@ -389,8 +390,8 @@ def test_register_hot_curves_in_registry_overwrite_keeps_non_interpolation_same_
         overwrite=True,
     )
 
-    assert loaded == ["dmdd.LZSI2024"]
-    assert "dmdd.LZSI2024" in registry.list(namespace="dmdd")
+    assert loaded == ["dmddxn.LZSI2024"]
+    assert "dmddxn.LZSI2024" in registry.list(namespace="dmddxn")
     assert "user_ops.LZSI2024" in registry.list(namespace="user_ops")
 
 
@@ -845,33 +846,90 @@ def test_registered_curve_reuses_prepared_interpolator(tmp_path) -> None:
     assert registry.get("interp.line").numpy_impl is curve_fn
 
 
-def test_dmdd_curve_returns_nan_on_out_of_bounds_and_nan_input() -> None:
+def test_dmddxn_curve_returns_nan_on_out_of_bounds_and_nan_input() -> None:
     base = resources.files("jarvis_operas").joinpath("manifests")
     manifest_path = base.joinpath("interpolations.manifest.json")
 
     # Compile against current packaged manifests to avoid stale local cache behavior.
-    temp_index = Path.cwd() / ".pytest-dmdd-index.json"
+    temp_index = Path.cwd() / ".pytest-dmddxn-index.json"
     try:
         init_curve_cache(
             str(manifest_path),
             index_path=str(temp_index),
-            namespaces=["dmdd"],
+            namespaces=["dmddxn"],
             force=True,
         )
 
         registry = OperasRegistry()
         loaded = register_hot_curves_in_registry(registry, index_path=str(temp_index))
-        assert "dmdd.LZSI2024" in loaded
-        assert "dmdd.XENONnTSI2025" in loaded
-        assert "dmdd.LZSDp2024" in loaded
-        assert "dmdd.XENONnTSDp2025Combined" in loaded
-        assert "dmdd.LZSDn2024" in loaded
-        assert "dmdd.XENONnTSDn2025" in loaded
+        assert "dmddxn.LZSI2024" in loaded
+        assert "dmddxn.XENONnTSI2025" in loaded
+        assert "dmddxn.LZSDp2024" in loaded
+        assert "dmddxn.XENONnTSDp2025Combined" in loaded
+        assert "dmddxn.LZSDn2024" in loaded
+        assert "dmddxn.XENONnTSDn2025" in loaded
 
-        scalar = registry.call("dmdd.LZSI2024", x=1.0)
+        scalar = registry.call("dmddxn.LZSI2024", x=1.0)
         assert np.isnan(float(scalar))
 
-        mixed = registry.call("dmdd.LZSI2024", x=np.array([1.0, np.nan, 1.0e3]))
+        mixed = registry.call("dmddxn.LZSI2024", x=np.array([1.0, np.nan, 1.0e3]))
+        assert mixed.shape == (3,)
+        assert np.isnan(mixed[0])
+        assert np.isnan(mixed[1])
+        assert np.isfinite(mixed[2])
+    finally:
+        if temp_index.exists():
+            temp_index.unlink()
+        temp_curve_dir = temp_index.parent / "curves"
+        if temp_curve_dir.exists():
+            for child in temp_curve_dir.glob("*"):
+                child.unlink()
+            temp_curve_dir.rmdir()
+
+
+def test_dmddxe_curve_returns_nan_on_out_of_bounds_and_nan_input() -> None:
+    base = resources.files("jarvis_operas").joinpath("manifests")
+    manifest_path = base.joinpath("interpolations.manifest.json")
+
+    temp_index = Path.cwd() / ".pytest-dmddxe-index.json"
+    try:
+        init_curve_cache(
+            str(manifest_path),
+            index_path=str(temp_index),
+            namespaces=["dmddxe"],
+            force=True,
+        )
+
+        registry = OperasRegistry()
+        loaded = register_hot_curves_in_registry(registry, index_path=str(temp_index))
+        expected = {
+            "dmddxe.CDEXLM2022",
+            "dmddxe.DarkSide50LM2022",
+            "dmddxe.CDMSHVeVLM2023",
+            "dmddxe.SENSEILM2024Combined",
+            "dmddxe.DAMICMLM2025Combined",
+            "dmddxe.EDELWEISSLM2020",
+            "dmddxe.PandaXLM2021",
+            "dmddxe.XENON10LM2017",
+            "dmddxe.XENON1TSolarReflectionLM2022",
+            "dmddxe.AllLimitsLM2024",
+            "dmddxe.CDEXHM2022",
+            "dmddxe.DarkSide50HM2022",
+            "dmddxe.CDMSHVeVHM2023",
+            "dmddxe.SENSEIHM2024Combined",
+            "dmddxe.DAMICMHM2025Combined",
+            "dmddxe.EDELWEISSHM2020",
+            "dmddxe.PandaXHM2021",
+            "dmddxe.XENON1THM2019",
+            "dmddxe.XENON1TSolarReflectionHM2022",
+            "dmddxe.AllLimitsHM2024",
+        }
+        assert expected.issubset(set(loaded))
+
+        scalar = registry.call("dmddxe.CDEXLM2022", x=1.0)
+        assert np.isnan(float(scalar))
+
+        mixed = registry.call("dmddxe.CDEXLM2022", x=np.array([1.0, np.nan, 1.0e3]))
         assert mixed.shape == (3,)
         assert np.isnan(mixed[0])
         assert np.isnan(mixed[1])
@@ -901,7 +959,7 @@ def test_global_registry_bootstrap_refreshes_builtin_curve_cache(
                 {
                     "version": 1,
                     "kind": "jarvis_operas_interpolation_namespace_manifest",
-                    "namespace": "dmdd",
+                    "namespace": "dmddxn",
                     "functions": [
                         {
                             "name": "LZSI2024",
@@ -925,7 +983,7 @@ def test_global_registry_bootstrap_refreshes_builtin_curve_cache(
                     "kind": "jarvis_operas_interpolation_namespace_index",
                     "namespaces": [
                         {
-                            "namespace": "dmdd",
+                            "namespace": "dmddxn",
                             "manifest": str(stale_namespace_manifest.resolve()),
                         }
                     ],
@@ -945,5 +1003,5 @@ def test_global_registry_bootstrap_refreshes_builtin_curve_cache(
     monkeypatch.setattr(api_mod, "_global_operas", None)
     registry = api_mod.get_global_operas_registry()
 
-    value = registry.call("dmdd.LZSI2024", x=1.0)
+    value = registry.call("dmddxn.LZSI2024", x=1.0)
     assert np.isnan(float(value))

@@ -11,24 +11,30 @@ def test_catalog_default_namespaces_do_not_include_interpolations() -> None:
 
     assert {"math", "stat", "helper", "cmb"}.issubset(namespaces)
     assert "interp1" not in namespaces
-    assert "dmdd" not in namespaces
+    assert "dmddxn" not in namespaces
+    assert "dmddxe" not in namespaces
 
 
 def test_catalog_can_load_interpolation_namespaces_on_demand() -> None:
     declarations = get_catalog_declarations(
-        namespaces=["interp1", "dmdd"],
+        namespaces=["interp1", "dmddxn", "dmddxe"],
         include_interpolations=True,
     )
     names = {item.full_name for item in declarations}
 
     assert "interp1.interp1_xy_flat" in names
-    assert "dmdd.LZSI2024" in names
-    assert "dmdd.XENONnTSI2025" in names
-    assert "dmdd.LZSDp2024" in names
-    assert "dmdd.XENONnTSDp2025Combined" in names
-    assert "dmdd.LZSDn2024" in names
-    assert "dmdd.XENONnTSDn2025" in names
-    assert "dmdd.CDMSSDn2010" in names
+    assert "dmddxn.LZSI2024" in names
+    assert "dmddxn.XENONnTSI2025" in names
+    assert "dmddxn.LZSDp2024" in names
+    assert "dmddxn.XENONnTSDp2025Combined" in names
+    assert "dmddxn.LZSDn2024" in names
+    assert "dmddxn.XENONnTSDn2025" in names
+    assert "dmddxn.CDMSSDn2010" in names
+    assert "dmddxe.CDEXLM2022" in names
+    assert "dmddxe.SENSEILM2024Combined" in names
+    assert "dmddxe.DAMICMLM2025Combined" in names
+    assert "dmddxe.AllLimitsLM2024" in names
+    assert "dmddxe.XENON1THM2019" in names
 
 
 def test_catalog_rejects_unknown_namespace() -> None:

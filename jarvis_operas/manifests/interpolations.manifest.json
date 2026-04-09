@@ -9,9 +9,14 @@
       "description": "Built-in interpolation mode examples."
     },
     {
-      "namespace": "dmdd",
+      "namespace": "dmddxn",
       "manifest": "dmdd/dmdd.manifest.json",
       "description": "Dark-matter direct-detection interpolation functions."
+    },
+    {
+      "namespace": "dmddxe",
+      "manifest": "dme/dme.manifest.json",
+      "description": "Dark-matter electron-scattering interpolation functions."
     }
   ]
 }
