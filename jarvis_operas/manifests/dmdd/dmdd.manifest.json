@@ -1,7 +1,7 @@
 {
   "version": 1,
   "kind": "jarvis_operas_interpolation_namespace_manifest",
-  "namespace": "dmdd",
+  "namespace": "dmddxn",
   "functions": [
     {
       "name": "LZSI2024",
@@ -12,7 +12,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -22,7 +22,7 @@
         "note": "LZ 2024 result of DM-Nucleon SI 90% C.L. upper limits. From https://arxiv.org/pdf/2410.17036",
         "summary": "LZ 2024 SI 90% C.L. upper limit curve (arXiv:2410.17036).",
         "examples": [
-          "jopera call dmdd.LZSI2024 --kwargs '{\"x\":30.0}'"
+          "jopera call dmddxn.LZSI2024 --kwargs '{\"x\":30.0}'"
         ]
       }
     },
@@ -35,7 +35,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": true,
         "source_papers": [
@@ -47,7 +47,7 @@
         "note": "Derived envelope built in DirectDetectionPlots-main/notebooks/DM-Nucleon.ipynb using CreateEnvelope over XENONnT_2024_Combined and XENONnT_2025.",
         "summary": "XENONnT 2025 combined SI upper-limit envelope.",
         "examples": [
-          "jopera call dmdd.XENONnTSI2025 --kwargs '{\"x\":30.0}'"
+          "jopera call dmddxn.XENONnTSI2025 --kwargs '{\"x\":30.0}'"
         ]
       }
     },
@@ -60,7 +60,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -70,7 +70,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SI/XENON1T-Migdal.txt.",
         "summary": "XENON1T Migdal-effect SI limit curve.",
         "examples": [
-          "jopera call dmdd.XENON1TMigdalSI2019 --kwargs '{\"x\":1.0}'"
+          "jopera call dmddxn.XENON1TMigdalSI2019 --kwargs '{\"x\":1.0}'"
         ]
       }
     },
@@ -83,7 +83,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": true,
         "source_papers": [
@@ -95,7 +95,7 @@
         "note": "Derived combined PandaX limit from DirectDetectionPlots-main/data/limits/Nucleon/SI/PandaX_2024_Combined.txt.",
         "summary": "PandaX combined SI upper-limit curve.",
         "examples": [
-          "jopera call dmdd.PandaXSI2024 --kwargs '{\"x\":30.0}'"
+          "jopera call dmddxn.PandaXSI2024 --kwargs '{\"x\":30.0}'"
         ]
       }
     },
@@ -108,7 +108,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -118,7 +118,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SI/CRESST.txt.",
         "summary": "CRESST SI upper-limit curve.",
         "examples": [
-          "jopera call dmdd.CRESSTSI2019 --kwargs '{\"x\":1.0}'"
+          "jopera call dmddxn.CRESSTSI2019 --kwargs '{\"x\":1.0}'"
         ]
       }
     },
@@ -131,7 +131,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -141,7 +141,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SI/DarkSide-50_2022.txt.",
         "summary": "DarkSide-50 2022 SI upper-limit curve.",
         "examples": [
-          "jopera call dmdd.DarkSide50SI2022 --kwargs '{\"x\":5.0}'"
+          "jopera call dmddxn.DarkSide50SI2022 --kwargs '{\"x\":5.0}'"
         ]
       }
     },
@@ -154,7 +154,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -164,7 +164,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SI/EDELWEISS.txt.",
         "summary": "EDELWEISS SI upper-limit curve.",
         "examples": [
-          "jopera call dmdd.EDELWEISSSI2016 --kwargs '{\"x\":10.0}'"
+          "jopera call dmddxn.EDELWEISSSI2016 --kwargs '{\"x\":10.0}'"
         ]
       }
     },
@@ -177,7 +177,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -187,7 +187,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SI/DEAP-3600.txt.",
         "summary": "DEAP-3600 SI upper-limit curve.",
         "examples": [
-          "jopera call dmdd.DEAP3600SI2019 --kwargs '{\"x\":100.0}'"
+          "jopera call dmddxn.DEAP3600SI2019 --kwargs '{\"x\":100.0}'"
         ]
       }
     },
@@ -200,7 +200,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -211,7 +211,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SI/PICO60.txt.",
         "summary": "PICO-60 SI upper-limit curve.",
         "examples": [
-          "jopera call dmdd.PICO60SI2019 --kwargs '{\"x\":10.0}'"
+          "jopera call dmddxn.PICO60SI2019 --kwargs '{\"x\":10.0}'"
         ]
       }
     },
@@ -224,7 +224,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -234,7 +234,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SI/COSINE-100.txt.",
         "summary": "COSINE-100 SI upper-limit curve.",
         "examples": [
-          "jopera call dmdd.COSINE100SI2018 --kwargs '{\"x\":30.0}'"
+          "jopera call dmddxn.COSINE100SI2018 --kwargs '{\"x\":30.0}'"
         ]
       }
     },
@@ -247,7 +247,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -257,7 +257,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SI/NEWS-G.txt.",
         "summary": "NEWS-G SI upper-limit curve.",
         "examples": [
-          "jopera call dmdd.NEWSGSI2017 --kwargs '{\"x\":1.0}'"
+          "jopera call dmddxn.NEWSGSI2017 --kwargs '{\"x\":1.0}'"
         ]
       }
     },
@@ -270,7 +270,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -280,7 +280,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SDp/LZ_2024.txt.",
         "summary": "LZ 2024 SDp 90% C.L. upper-limit curve (arXiv:2410.17036).",
         "examples": [
-          "jopera call dmdd.LZSDp2024 --kwargs '{\"x\":30.0}'"
+          "jopera call dmddxn.LZSDp2024 --kwargs '{\"x\":30.0}'"
         ]
       }
     },
@@ -293,7 +293,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -303,7 +303,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SDp/PICASSO.txt.",
         "summary": "PICASSO SDp upper-limit curve (arXiv:1202.1240).",
         "examples": [
-          "jopera call dmdd.PICASSOSDp2012 --kwargs '{\"x\":10.0}'"
+          "jopera call dmddxn.PICASSOSDp2012 --kwargs '{\"x\":10.0}'"
         ]
       }
     },
@@ -316,7 +316,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -327,7 +327,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SDp/PICO60.txt.",
         "summary": "PICO-60 SDp upper-limit curve.",
         "examples": [
-          "jopera call dmdd.PICO60SDp2019 --kwargs '{\"x\":10.0}'"
+          "jopera call dmddxn.PICO60SDp2019 --kwargs '{\"x\":10.0}'"
         ]
       }
     },
@@ -340,7 +340,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -350,7 +350,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SDp/CRESST.txt.",
         "summary": "CRESST-III SDp upper-limit curve (arXiv:2207.07640).",
         "examples": [
-          "jopera call dmdd.CRESSTSDp2022 --kwargs '{\"x\":1.0}'"
+          "jopera call dmddxn.CRESSTSDp2022 --kwargs '{\"x\":1.0}'"
         ]
       }
     },
@@ -363,7 +363,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -373,7 +373,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SDp/XENONnT_2025.txt.",
         "summary": "XENONnT 2025 SDp upper-limit curve (arXiv:2502.18005).",
         "examples": [
-          "jopera call dmdd.XENONnTSDp2025 --kwargs '{\"x\":30.0}'"
+          "jopera call dmddxn.XENONnTSDp2025 --kwargs '{\"x\":30.0}'"
         ]
       }
     },
@@ -386,7 +386,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -396,7 +396,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SDp/PandaX.txt.",
         "summary": "PandaX SDp upper-limit curve (arXiv:2408.00664).",
         "examples": [
-          "jopera call dmdd.PandaXSDp2024 --kwargs '{\"x\":30.0}'"
+          "jopera call dmddxn.PandaXSDp2024 --kwargs '{\"x\":30.0}'"
         ]
       }
     },
@@ -409,7 +409,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -419,7 +419,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SDp/COUPP.txt.",
         "summary": "COUPP SDp upper-limit curve (arXiv:1204.3094).",
         "examples": [
-          "jopera call dmdd.COUPPSDp2012 --kwargs '{\"x\":800.0}'"
+          "jopera call dmddxn.COUPPSDp2012 --kwargs '{\"x\":800.0}'"
         ]
       }
     },
@@ -432,7 +432,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -442,7 +442,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SDp/NEWS-G.txt.",
         "summary": "NEWS-G SDp upper-limit curve (arXiv:2407.12769).",
         "examples": [
-          "jopera call dmdd.NEWSGSDp2024 --kwargs '{\"x\":1.0}'"
+          "jopera call dmddxn.NEWSGSDp2024 --kwargs '{\"x\":1.0}'"
         ]
       }
     },
@@ -455,7 +455,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": true,
         "source_papers": [
@@ -466,7 +466,7 @@
         "note": "Derived envelope built in DirectDetectionPlots-main/notebooks/DM-Nucleon.ipynb using CreateEnvelope over XENONnT_2024 and XENONnT_2025.",
         "summary": "XENONnT 2025 combined SDp upper-limit envelope.",
         "examples": [
-          "jopera call dmdd.XENONnTSDp2025Combined --kwargs '{\"x\":30.0}'"
+          "jopera call dmddxn.XENONnTSDp2025Combined --kwargs '{\"x\":30.0}'"
         ]
       }
     },
@@ -479,7 +479,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -489,7 +489,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SDn/LZ_2024.txt.",
         "summary": "LZ 2024 SDn 90% C.L. upper-limit curve (arXiv:2410.17036).",
         "examples": [
-          "jopera call dmdd.LZSDn2024 --kwargs '{\"x\":30.0}'"
+          "jopera call dmddxn.LZSDn2024 --kwargs '{\"x\":30.0}'"
         ]
       }
     },
@@ -502,7 +502,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": true,
         "source_papers": [
@@ -514,7 +514,7 @@
         "note": "Derived envelope built in DirectDetectionPlots-main/notebooks/DM-Nucleon.ipynb using CreateEnvelope over XENONnT_2024_Combined and XENONnT_2025.",
         "summary": "XENONnT 2025 combined SDn upper-limit envelope.",
         "examples": [
-          "jopera call dmdd.XENONnTSDn2025 --kwargs '{\"x\":30.0}'"
+          "jopera call dmddxn.XENONnTSDn2025 --kwargs '{\"x\":30.0}'"
         ]
       }
     },
@@ -527,7 +527,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -537,7 +537,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SDn/PandaX.txt.",
         "summary": "PandaX SDn upper-limit curve (arXiv:2408.00664).",
         "examples": [
-          "jopera call dmdd.PandaXSDn2024 --kwargs '{\"x\":30.0}'"
+          "jopera call dmddxn.PandaXSDn2024 --kwargs '{\"x\":30.0}'"
         ]
       }
     },
@@ -550,7 +550,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -560,7 +560,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SDn/CDMS.txt.",
         "summary": "CDMS II SDn upper-limit curve (Science 327:1619-1621, 2010).",
         "examples": [
-          "jopera call dmdd.CDMSSDn2010 --kwargs '{\"x\":10.0}'"
+          "jopera call dmddxn.CDMSSDn2010 --kwargs '{\"x\":10.0}'"
         ]
       }
     },
@@ -573,7 +573,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -583,7 +583,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SDn/CRESST.txt.",
         "summary": "CRESST-III SDn upper-limit curve (arXiv:2207.07640).",
         "examples": [
-          "jopera call dmdd.CRESSTSDn2022 --kwargs '{\"x\":1.0}'"
+          "jopera call dmddxn.CRESSTSDn2022 --kwargs '{\"x\":1.0}'"
         ]
       }
     },
@@ -596,7 +596,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -606,7 +606,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SDn/CDMSlite.txt.",
         "summary": "CDMSlite SDn upper-limit curve (Phys. Rev. D 99, 062001 (2019)).",
         "examples": [
-          "jopera call dmdd.CDMSliteSDn2019 --kwargs '{\"x\":5.0}'"
+          "jopera call dmddxn.CDMSliteSDn2019 --kwargs '{\"x\":5.0}'"
         ]
       }
     },
@@ -619,7 +619,7 @@
       "extrapolation": "nan",
       "hot": true,
       "metadata": {
-        "group": "dmdd",
+        "group": "dmddxn",
         "mode": "x_log_y_log",
         "derived": false,
         "source_papers": [
@@ -629,7 +629,7 @@
         "note": "Raw curve from DirectDetectionPlots-main/data/limits/Nucleon/SDn/XENON1T-Migdal.txt.",
         "summary": "XENON1T Migdal-effect SDn limit curve.",
         "examples": [
-          "jopera call dmdd.XENON1TMigdalSDn2019 --kwargs '{\"x\":1.0}'"
+          "jopera call dmddxn.XENON1TMigdalSDn2019 --kwargs '{\"x\":1.0}'"
         ]
       }
     }

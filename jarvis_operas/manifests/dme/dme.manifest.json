@@ -1,0 +1,488 @@
+{
+  "version": 1,
+  "kind": "jarvis_operas_interpolation_namespace_manifest",
+  "namespace": "dmddxe",
+  "functions": [
+    {
+      "name": "CDEXLM2022",
+      "source": "dme/light/CDEX.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": false,
+        "source_papers": [
+          "https://arxiv.org/pdf/2206.04128"
+        ],
+        "figure": "CDEX exclusion curve in the DM-electron light-mediator panel.",
+        "note": "Raw curve from DirectDetectionPlots-main/data/limits/Electron/LightMediator/CDEX.txt.",
+        "summary": "CDEX 2022 light-mediator DM-electron upper-limit curve.",
+        "examples": [
+          "jopera call dmddxe.CDEXLM2022 --kwargs '{\"x\":100.0}'"
+        ]
+      }
+    },
+    {
+      "name": "DarkSide50LM2022",
+      "source": "dme/light/DarkSide-50.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": false,
+        "source_papers": [
+          "https://arxiv.org/pdf/2207.11968.pdf"
+        ],
+        "figure": "DarkSide-50 exclusion curve in the DM-electron light-mediator panel.",
+        "note": "Raw curve from DirectDetectionPlots-main/data/limits/Electron/LightMediator/DarkSide-50.txt.",
+        "summary": "DarkSide-50 2022 light-mediator DM-electron upper-limit curve.",
+        "examples": [
+          "jopera call dmddxe.DarkSide50LM2022 --kwargs '{\"x\":20.0}'"
+        ]
+      }
+    },
+    {
+      "name": "CDMSHVeVLM2023",
+      "source": "dme/light/CDMS-HVeV.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": false,
+        "source_papers": [
+          "https://arxiv.org/pdf/2302.02372.pdf",
+          "https://journals.aps.org/prd/abstract/10.1103/PhysRevD.102.091101"
+        ],
+        "figure": "CDMS-HVeV exclusion curve in the DM-electron light-mediator panel.",
+        "note": "Recasted curve from DirectDetectionPlots-main/data/limits/Electron/LightMediator/CDMS-HVeV.txt using the consistent halo and charge-yield model described in the DAMIC recast paper.",
+        "summary": "CDMS-HVeV 2023 light-mediator DM-electron upper-limit curve.",
+        "examples": [
+          "jopera call dmddxe.CDMSHVeVLM2023 --kwargs '{\"x\":1.0}'"
+        ]
+      }
+    },
+    {
+      "name": "SENSEILM2024Combined",
+      "source": "dme/light/SENSEI_2024_Combined.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": true,
+        "source_papers": [
+          "https://arxiv.org/pdf/2302.02372.pdf",
+          "https://arxiv.org/pdf/2004.11378.pdf",
+          "https://arxiv.org/pdf/2410.18716"
+        ],
+        "figure": "Combination of SENSEI and SENSEI_1e in the DM-electron light-mediator panel.",
+        "note": "Derived envelope built in DirectDetectionPlots-main/notebooks/DM-Electron.ipynb using CreateEnvelope over SENSEI and SENSEI_1e.",
+        "summary": "SENSEI 2024 combined light-mediator envelope.",
+        "examples": [
+          "jopera call dmddxe.SENSEILM2024Combined --kwargs '{\"x\":1.0}'"
+        ]
+      }
+    },
+    {
+      "name": "DAMICMLM2025Combined",
+      "source": "dme/light/DAMIC-M_2025_Combined.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": true,
+        "source_papers": [
+          "https://arxiv.org/pdf/2302.02372.pdf",
+          "https://arxiv.org/pdf/2307.07251",
+          "https://arxiv.org/pdf/2503.14617"
+        ],
+        "figure": "Combination of DAMIC-M and DAMIC-M-DailyModulation in the DM-electron light-mediator panel.",
+        "note": "Derived envelope built in DirectDetectionPlots-main/notebooks/DM-Electron.ipynb using CreateEnvelope over DAMIC-M, DAMIC-M-DailyModulation, and DAMIC-M_2025.",
+        "summary": "DAMIC-M 2025 combined light-mediator envelope.",
+        "examples": [
+          "jopera call dmddxe.DAMICMLM2025Combined --kwargs '{\"x\":1.0}'"
+        ]
+      }
+    },
+    {
+      "name": "EDELWEISSLM2020",
+      "source": "dme/light/EDELWEISS.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": false,
+        "source_papers": [
+          "https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.125.141301"
+        ],
+        "figure": "EDELWEISS exclusion curve in the DM-electron light-mediator panel.",
+        "note": "Raw curve from DirectDetectionPlots-main/data/limits/Electron/LightMediator/EDELWEISS.txt.",
+        "summary": "EDELWEISS 2020 light-mediator DM-electron upper-limit curve.",
+        "examples": [
+          "jopera call dmddxe.EDELWEISSLM2020 --kwargs '{\"x\":5.0}'"
+        ]
+      }
+    },
+    {
+      "name": "PandaXLM2021",
+      "source": "dme/light/PandaX.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": false,
+        "source_papers": [
+          "https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.126.211803"
+        ],
+        "figure": "PandaX exclusion curve in the DM-electron light-mediator panel.",
+        "note": "Raw curve from DirectDetectionPlots-main/data/limits/Electron/LightMediator/PandaX.txt.",
+        "summary": "PandaX 2021 light-mediator DM-electron upper-limit curve.",
+        "examples": [
+          "jopera call dmddxe.PandaXLM2021 --kwargs '{\"x\":10.0}'"
+        ]
+      }
+    },
+    {
+      "name": "XENON10LM2017",
+      "source": "dme/light/XENON10.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": false,
+        "source_papers": [
+          "https://journals.aps.org/prd/abstract/10.1103/PhysRevD.96.043017"
+        ],
+        "figure": "XENON10 exclusion curve in the DM-electron light-mediator panel.",
+        "note": "Raw curve from DirectDetectionPlots-main/data/limits/Electron/LightMediator/XENON10.txt.",
+        "summary": "XENON10 2017 light-mediator DM-electron upper-limit curve.",
+        "examples": [
+          "jopera call dmddxe.XENON10LM2017 --kwargs '{\"x\":10.0}'"
+        ]
+      }
+    },
+    {
+      "name": "XENON1TSolarReflectionLM2022",
+      "source": "dme/light/XENON1T_SolarReflection.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": false,
+        "source_papers": [
+          "https://journals.aps.org/prd/abstract/10.1103/PhysRevD.105.063020"
+        ],
+        "figure": "XENON1T solar-reflection exclusion curve in the DM-electron light-mediator panel.",
+        "note": "Raw curve from DirectDetectionPlots-main/data/limits/Electron/LightMediator/XENON1T_SolarReflection.txt.",
+        "summary": "XENON1T solar-reflection 2022 light-mediator DM-electron upper-limit curve.",
+        "examples": [
+          "jopera call dmddxe.XENON1TSolarReflectionLM2022 --kwargs '{\"x\":1.0}'"
+        ]
+      }
+    },
+    {
+      "name": "AllLimitsLM2024",
+      "source": "dme/light/AllLimits-2024.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": true,
+        "source_papers": [
+          "https://arxiv.org/pdf/2302.02372.pdf",
+          "https://arxiv.org/pdf/2004.11378.pdf",
+          "https://arxiv.org/pdf/2410.18716",
+          "https://arxiv.org/pdf/2307.07251",
+          "https://arxiv.org/pdf/2503.14617",
+          "https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.125.141301"
+        ],
+        "figure": "Envelope of best limits as of 2024 in the DM-electron light-mediator panel.",
+        "note": "Derived envelope built in DirectDetectionPlots-main/notebooks/DM-Electron.ipynb using CreateEnvelope over DAMIC-M_2025_Combined, SENSEI_2024_Combined, and EDELWEISS.",
+        "summary": "2024 best-limit envelope for the light-mediator DM-electron panel.",
+        "examples": [
+          "jopera call dmddxe.AllLimitsLM2024 --kwargs '{\"x\":1.0}'"
+        ]
+      }
+    },
+    {
+      "name": "CDEXHM2022",
+      "source": "dme/heavy/CDEX.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": false,
+        "source_papers": [
+          "https://arxiv.org/pdf/2206.04128"
+        ],
+        "figure": "CDEX exclusion curve in the DM-electron heavy-mediator panel.",
+        "note": "Raw curve from DirectDetectionPlots-main/data/limits/Electron/HeavyMediator/CDEX.txt.",
+        "summary": "CDEX 2022 heavy-mediator DM-electron upper-limit curve.",
+        "examples": [
+          "jopera call dmddxe.CDEXHM2022 --kwargs '{\"x\":100.0}'"
+        ]
+      }
+    },
+    {
+      "name": "DarkSide50HM2022",
+      "source": "dme/heavy/DarkSide-50.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": false,
+        "source_papers": [
+          "https://arxiv.org/pdf/2207.11968.pdf"
+        ],
+        "figure": "DarkSide-50 exclusion curve in the DM-electron heavy-mediator panel.",
+        "note": "Raw curve from DirectDetectionPlots-main/data/limits/Electron/HeavyMediator/DarkSide-50.txt.",
+        "summary": "DarkSide-50 2022 heavy-mediator DM-electron upper-limit curve.",
+        "examples": [
+          "jopera call dmddxe.DarkSide50HM2022 --kwargs '{\"x\":20.0}'"
+        ]
+      }
+    },
+    {
+      "name": "CDMSHVeVHM2023",
+      "source": "dme/heavy/CDMS-HVeV.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": false,
+        "source_papers": [
+          "https://arxiv.org/pdf/2302.02372.pdf",
+          "https://journals.aps.org/prd/abstract/10.1103/PhysRevD.102.091101"
+        ],
+        "figure": "CDMS-HVeV exclusion curve in the DM-electron heavy-mediator panel.",
+        "note": "Recasted curve from DirectDetectionPlots-main/data/limits/Electron/HeavyMediator/CDMS-HVeV.txt using the consistent halo and charge-yield model described in the DAMIC recast paper.",
+        "summary": "CDMS-HVeV 2023 heavy-mediator DM-electron upper-limit curve.",
+        "examples": [
+          "jopera call dmddxe.CDMSHVeVHM2023 --kwargs '{\"x\":1.0}'"
+        ]
+      }
+    },
+    {
+      "name": "SENSEIHM2024Combined",
+      "source": "dme/heavy/SENSEI_2024_Combined.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": true,
+        "source_papers": [
+          "https://arxiv.org/pdf/2302.02372.pdf",
+          "https://arxiv.org/pdf/2004.11378.pdf",
+          "https://arxiv.org/pdf/2410.18716"
+        ],
+        "figure": "Combination of SENSEI and SENSEI_1e in the DM-electron heavy-mediator panel.",
+        "note": "Derived envelope built in DirectDetectionPlots-main/notebooks/DM-Electron.ipynb using CreateEnvelope over SENSEI and SENSEI_1e.",
+        "summary": "SENSEI 2024 combined heavy-mediator envelope.",
+        "examples": [
+          "jopera call dmddxe.SENSEIHM2024Combined --kwargs '{\"x\":1.0}'"
+        ]
+      }
+    },
+    {
+      "name": "DAMICMHM2025Combined",
+      "source": "dme/heavy/DAMIC-M_2025_Combined.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": true,
+        "source_papers": [
+          "https://arxiv.org/pdf/2302.02372.pdf",
+          "https://arxiv.org/pdf/2307.07251",
+          "https://arxiv.org/pdf/2503.14617"
+        ],
+        "figure": "Combination of DAMIC-M and DAMIC-M-DailyModulation in the DM-electron heavy-mediator panel.",
+        "note": "Derived envelope built in DirectDetectionPlots-main/notebooks/DM-Electron.ipynb using CreateEnvelope over DAMIC-M, DAMIC-M-DailyModulation, and DAMIC-M_2025.",
+        "summary": "DAMIC-M 2025 combined heavy-mediator envelope.",
+        "examples": [
+          "jopera call dmddxe.DAMICMHM2025Combined --kwargs '{\"x\":1.0}'"
+        ]
+      }
+    },
+    {
+      "name": "EDELWEISSHM2020",
+      "source": "dme/heavy/EDELWEISS.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": false,
+        "source_papers": [
+          "https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.125.141301"
+        ],
+        "figure": "EDELWEISS exclusion curve in the DM-electron heavy-mediator panel.",
+        "note": "Raw curve from DirectDetectionPlots-main/data/limits/Electron/HeavyMediator/EDELWEISS.txt.",
+        "summary": "EDELWEISS 2020 heavy-mediator DM-electron upper-limit curve.",
+        "examples": [
+          "jopera call dmddxe.EDELWEISSHM2020 --kwargs '{\"x\":5.0}'"
+        ]
+      }
+    },
+    {
+      "name": "PandaXHM2021",
+      "source": "dme/heavy/PandaX.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": false,
+        "source_papers": [
+          "https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.126.211803"
+        ],
+        "figure": "PandaX exclusion curve in the DM-electron heavy-mediator panel.",
+        "note": "Raw curve from DirectDetectionPlots-main/data/limits/Electron/HeavyMediator/PandaX.txt.",
+        "summary": "PandaX 2021 heavy-mediator DM-electron upper-limit curve.",
+        "examples": [
+          "jopera call dmddxe.PandaXHM2021 --kwargs '{\"x\":10.0}'"
+        ]
+      }
+    },
+    {
+      "name": "XENON1THM2019",
+      "source": "dme/heavy/XENON1T.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": false,
+        "source_papers": [
+          "https://arxiv.org/pdf/1907.11485"
+        ],
+        "figure": "XENON1T exclusion curve in the DM-electron heavy-mediator panel.",
+        "note": "Raw curve from DirectDetectionPlots-main/data/limits/Electron/HeavyMediator/XENON1T.txt (the file header labels it XENON100).",
+        "summary": "XENON1T 2019 heavy-mediator DM-electron upper-limit curve.",
+        "examples": [
+          "jopera call dmddxe.XENON1THM2019 --kwargs '{\"x\":30.0}'"
+        ]
+      }
+    },
+    {
+      "name": "XENON1TSolarReflectionHM2022",
+      "source": "dme/heavy/XENON1T_SolarReflection.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": false,
+        "source_papers": [
+          "https://journals.aps.org/prd/abstract/10.1103/PhysRevD.105.063020"
+        ],
+        "figure": "XENON1T solar-reflection exclusion curve in the DM-electron heavy-mediator panel.",
+        "note": "Raw curve from DirectDetectionPlots-main/data/limits/Electron/HeavyMediator/XENON1T_SolarReflection.txt.",
+        "summary": "XENON1T solar-reflection 2022 heavy-mediator DM-electron upper-limit curve.",
+        "examples": [
+          "jopera call dmddxe.XENON1TSolarReflectionHM2022 --kwargs '{\"x\":1.0}'"
+        ]
+      }
+    },
+    {
+      "name": "AllLimitsHM2024",
+      "source": "dme/heavy/AllLimits-2024.json",
+      "kind": "cubic",
+      "logX": true,
+      "logY": true,
+      "extrapolation": "nan",
+      "hot": true,
+      "metadata": {
+        "group": "dmddxe",
+        "mode": "x_log_y_log",
+        "derived": true,
+        "source_papers": [
+          "https://arxiv.org/pdf/2302.02372.pdf",
+          "https://arxiv.org/pdf/2004.11378.pdf",
+          "https://arxiv.org/pdf/2410.18716",
+          "https://arxiv.org/pdf/2307.07251",
+          "https://arxiv.org/pdf/2503.14617",
+          "https://arxiv.org/pdf/1907.11485",
+          "https://arxiv.org/pdf/2207.11968.pdf"
+        ],
+        "figure": "Envelope of best limits as of 2024 in the DM-electron heavy-mediator panel.",
+        "note": "Derived envelope built in DirectDetectionPlots-main/notebooks/DM-Electron.ipynb using CreateEnvelope over DAMIC-M_2025_Combined, SENSEI_2024_Combined, DarkSide-50, and XENON1T.",
+        "summary": "2024 best-limit envelope for the heavy-mediator DM-electron panel.",
+        "examples": [
+          "jopera call dmddxe.AllLimitsHM2024 --kwargs '{\"x\":1.0}'"
+        ]
+      }
+    }
+  ]
+}

@@ -146,9 +146,9 @@ def test_cli_info_shows_operator_id() -> None:
 
 def test_print_info_human_hides_metadata_and_shows_note(capsys) -> None:
     info = {
-        "name": "dmdd.LZSI2024",
+        "name": "dmddxn.LZSI2024",
         "id": "d12345",
-        "namespace": "dmdd",
+        "namespace": "dmddxn",
         "signature": "(x)",
         "supports_async": True,
         "docstring": "LZ 2024 SI upper limit.",
@@ -517,7 +517,7 @@ def test_cli_init_then_list_uses_group_namespace(tmp_path) -> None:
                         "logX": True,
                         "logY": True,
                         "hot": True,
-                        "metadata": {"group": "dmdd"},
+                        "metadata": {"group": "dmddxn"},
                     }
                 ]
             }
@@ -540,10 +540,10 @@ def test_cli_init_then_list_uses_group_namespace(tmp_path) -> None:
         "JARVIS_OPERAS_CURVE_INDEX": str(index_path),
         "JARVIS_OPERAS_PERSIST_FILE": str(tmp_path / "persist_store.json"),
     }
-    list_result = _run_cli("list", "--namespace", "dmdd", "--json", env=env)
+    list_result = _run_cli("list", "--namespace", "dmddxn", "--json", env=env)
     assert list_result.returncode == 0, list_result.stderr
     payload = json.loads(list_result.stdout)
-    assert any(item["name"] == "dmdd.LZSI2024" for item in payload)
+    assert any(item["name"] == "dmddxn.LZSI2024" for item in payload)
 
 
 def test_cli_load_rejects_protected_namespace_override(tmp_path) -> None:

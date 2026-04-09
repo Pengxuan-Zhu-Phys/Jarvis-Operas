@@ -112,7 +112,7 @@ def _advanced_card() -> str:
           --log-mode MODE     warning|info|debug
           --json              Machine-readable output for supported commands
           init --force        Rebuild all curve cache pickle artifacts
-          init --namespaces   Comma list of interpolation namespaces (e.g. dmdd,interp1)
+          init --namespaces   Comma list of interpolation namespaces (e.g. interp1,dmddxn,dmddxe)
 
         Example:
           jopera call my_ops.my_func --user-ops ./my_ops.py --arg x=1 --arg y=2 --log-mode debug

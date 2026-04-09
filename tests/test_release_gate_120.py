@@ -213,7 +213,7 @@ def test_release_120_interpolation_functions_support_scalar_array_sync_async_and
     interpolation_names = [
         name
         for name in registry.list()
-        if name.startswith("interp1.") or name.startswith("dmdd.")
+        if name.startswith("interp1.") or name.startswith("dmddxn.") or name.startswith("dmddxe.")
     ]
     assert interpolation_names
 
