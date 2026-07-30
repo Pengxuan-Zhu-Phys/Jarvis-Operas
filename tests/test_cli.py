@@ -59,7 +59,9 @@ def test_cli_list_cards_reuse_fixed_column_positions() -> None:
     result = _run_cli("list")
 
     assert result.returncode == 0, result.stderr
-    header_lines = [line for line in result.stdout.splitlines() if "│  NAME" in line]
+    header_lines = [
+        line for line in result.stdout.splitlines() if "NAME" in line and "CATEGORY" in line and "SUMMARY" in line
+    ]
     assert len(header_lines) >= 3
     assert len({line.index("CATEGORY") for line in header_lines}) == 1
     assert len({line.index("SUMMARY") for line in header_lines}) == 1
@@ -83,6 +85,20 @@ def test_cli_list_cards_fold_long_values_without_ellipsis(capsys) -> None:
     assert "…" not in output
     assert "very_long_namespace" in output
     assert "operator_with_a_long_name" in output
+
+
+def test_cli_list_cards_separate_records_with_dim_lines(capsys) -> None:
+    cli_mod._print_list_human(
+        [
+            {"id": "x1234", "name": "demo.first", "namespace": "demo", "category": "demo", "summary": "First."},
+            {"id": "x5678", "name": "demo.second", "namespace": "demo", "category": "demo", "summary": "Second."},
+        ],
+        namespace_filter=None,
+    )
+    output = capsys.readouterr().out
+
+    assert "demo.first" in output and "demo.second" in output
+    assert output.count("─") >= 2
 
 
 def test_cli_no_args_shows_start_card() -> None:
