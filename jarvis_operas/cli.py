@@ -437,6 +437,7 @@ def _print_list_human(entries: list[dict[str, Any]], namespace_filter: str | Non
             Panel(
                 table,
                 title=f"Registered Jarvis-Operas · {namespace} ({len(namespace_entries)})",
+                title_align="left",
                 border_style="#9b7dcc",
                 box=box.ROUNDED,
             )
@@ -515,7 +516,7 @@ def _print_info_human(info: dict[str, Any]) -> None:
     table.add_row("SIGNATURE", str(info.get("signature", "")))
     table.add_row("ASYNC", str(supports_async).lower())
     console = _console()
-    console.print(Panel(table, title="Operator metadata", border_style="#9b7dcc", box=box.ROUNDED))
+    console.print(Panel(table, title="Operator metadata", title_align="left", border_style="#9b7dcc", box=box.ROUNDED))
     # Keep the old field labels discoverable for scripts and users accustomed
     # to the pre-card output while the primary presentation remains structured.
     if not sys.stdout.isatty():
@@ -527,14 +528,14 @@ def _print_info_human(info: dict[str, Any]) -> None:
         note_table = Table(show_header=False, box=None, expand=True, padding=(0, 1))
         note_table.add_column("NOTE", ratio=1, overflow="fold")
         note_table.add_row(note.strip())
-        console.print(Panel(note_table, title="Notes", border_style="#9b7dcc", box=box.ROUNDED))
+        console.print(Panel(note_table, title="Notes", title_align="left", border_style="#9b7dcc", box=box.ROUNDED))
     if _is_user_loaded_function(info):
         paths = Table(show_header=False, box=None, expand=True, padding=(0, 1))
         paths.add_column("STORE", width=16, style="bold dim", no_wrap=True)
         paths.add_column("PATH", ratio=1, overflow="fold")
         paths.add_row("USER SOURCES", str(get_sources_store_path()))
         paths.add_row("USER OVERRIDES", str(get_overrides_store_path()))
-        console.print(Panel(paths, title="Persistence", border_style="#9b7dcc", box=box.ROUNDED))
+        console.print(Panel(paths, title="Persistence", title_align="left", border_style="#9b7dcc", box=box.ROUNDED))
         if not sys.stdout.isatty():
             print(f"UserSources:\t{get_sources_store_path()}")
             print(f"UserOverrides:\t{get_overrides_store_path()}")
@@ -543,7 +544,7 @@ def _print_info_human(info: dict[str, Any]) -> None:
         examples = Table(show_header=False, box=None, expand=True, padding=(0, 1))
         examples.add_column("COMMAND", ratio=1, overflow="fold", style="cyan")
         examples.add_row(suggested.strip())
-        console.print(Panel(examples, title="Try next:", border_style="#9b7dcc", box=box.ROUNDED))
+        console.print(Panel(examples, title="Try next:", title_align="left", border_style="#9b7dcc", box=box.ROUNDED))
 
 
 def _print_not_found_error(full_name: str, names: list[str]) -> None:
