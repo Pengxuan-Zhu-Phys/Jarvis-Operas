@@ -55,6 +55,16 @@ def test_cli_list_human_output_uses_one_card_per_namespace() -> None:
     assert result.stdout.count("Registered Jarvis-Operas · ") >= 3
 
 
+def test_cli_list_cards_reuse_fixed_column_positions() -> None:
+    result = _run_cli("list")
+
+    assert result.returncode == 0, result.stderr
+    header_lines = [line for line in result.stdout.splitlines() if "│  NAME" in line]
+    assert len(header_lines) >= 3
+    assert len({line.index("CATEGORY") for line in header_lines}) == 1
+    assert len({line.index("SUMMARY") for line in header_lines}) == 1
+
+
 def test_cli_no_args_shows_start_card() -> None:
     result = _run_cli()
 
