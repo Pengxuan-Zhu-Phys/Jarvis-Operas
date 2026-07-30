@@ -72,6 +72,35 @@ def test_cli_help_does_not_show_discover() -> None:
     assert "delete-namespace" not in result.stdout
 
 
+def test_cli_help_uses_rounded_workflow_cards_and_fixed_usage() -> None:
+    result = _run_cli("--help")
+
+    assert result.returncode == 0, result.stderr
+    assert "Usage: jopera [OPTIONS] COMMAND [ARGS]..." in result.stdout
+    assert "╭" in result.stdout and "╰" in result.stdout
+    assert "Discovery" in result.stdout
+    assert "Inspection" in result.stdout
+    assert "Command help: jopera COMMAND -h" in result.stdout
+
+
+def test_cli_nested_help_uses_semantic_metavar_and_argument_card() -> None:
+    result = _run_cli("info", "-h")
+
+    assert result.returncode == 0, result.stderr
+    assert "Arguments" in result.stdout
+    assert "target" in result.stdout
+    assert "<name>" in result.stdout
+    assert "Usage: jopera info [OPTIONS] <name>" in result.stdout
+
+
+def test_cli_help_wraps_at_narrow_terminal_without_overlong_rows() -> None:
+    result = _run_cli("interp", "list", "-h", env={"COLUMNS": "80"})
+
+    assert result.returncode == 0, result.stderr
+    assert "Options" in result.stdout
+    assert all(len(line) <= 80 for line in result.stdout.splitlines())
+
+
 def test_cli_call_add_with_kwargs() -> None:
     result = _run_cli("call", "math.add", "--kwargs", '{"a": 2, "b": 3}')
 

@@ -3,13 +3,23 @@ from __future__ import annotations
 import argparse
 import asyncio
 import difflib
+import io
 import json
+import shutil
 import sys
 import textwrap
 from collections.abc import Mapping
 from importlib.metadata import PackageNotFoundError, version as dist_version
 from pathlib import Path
 from typing import Any
+
+import click
+import typer.rich_utils
+from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
 from .api import get_global_operas_registry
 from .core.registry import OperasRegistry
@@ -43,18 +53,181 @@ def _resolve_version() -> str:
         return "dev"
 
 
-class _JarvisHelpFormatter(argparse.RawDescriptionHelpFormatter):
-    """Hide argparse subparser metavar line and keep only concrete commands."""
+_HELP_PRIMARY_COLUMN_WIDTH = 24
+_HELP_ALIAS_COLUMN_WIDTH = 6
+_HELP_COMMAND_ORDER = {
+    "list": 10,
+    "info": 20,
+    "call": 30,
+    "acall": 40,
+    "load": 50,
+    "init": 60,
+    "interp": 70,
+    "help": 80,
+    "validate": 10,
+}
+_HELP_COMMAND_GROUPS = {
+    "list": "Discovery",
+    "info": "Inspection",
+    "call": "Execution",
+    "acall": "Execution",
+    "load": "Development",
+    "init": "Development",
+    "interp": "Development",
+    "help": "Guidance",
+}
+_HELP_METAVARS = {
+    "target": "<name>",
+    "full_name": "<name>",
+    "path": "<path>",
+    "namespace": "<namespace>",
+    "topic": "<topic>",
+    "manifest": "<manifest>",
+    "source_root": "<source_root>",
+    "cache_root": "<cache_root>",
+    "index_path": "<index_path>",
+}
 
-    def _format_action(self, action: argparse.Action) -> str:
-        if isinstance(action, argparse._SubParsersAction):
-            parts: list[str] = []
-            self._indent()
-            for subaction in self._iter_indented_subactions(action):
-                parts.append(self._format_action(subaction))
-            self._dedent()
-            return "".join(parts)
-        return super()._format_action(action)
+
+def _help_table() -> Table:
+    table = Table(show_header=False, expand=True, box=None, pad_edge=False, padding=(0, 1))
+    table.add_column(width=_HELP_PRIMARY_COLUMN_WIDTH, no_wrap=True)
+    table.add_column(width=_HELP_ALIAS_COLUMN_WIDTH, no_wrap=True)
+    table.add_column(ratio=1, overflow="fold")
+    return table
+
+
+def _help_panel(title: str, table: Table) -> Panel:
+    return Panel(
+        table,
+        title=Text(title, style="bold #d7b8ff"),
+        title_align="left",
+        border_style="#9b7dcc",
+        box=box.ROUNDED,
+        padding=(0, 1),
+    )
+
+
+def _help_param_label(param: click.Parameter, ctx: click.Context) -> tuple[Text, Text]:
+    if isinstance(param, click.Argument):
+        return Text(param.name or "", style="#d7b8ff"), Text(
+            getattr(param, "metavar", None) or param.make_metavar(ctx), style="yellow"
+        )
+    longs = [item for item in param.opts if item.startswith("--")]
+    shorts = [item for item in param.opts if not item.startswith("--")]
+    label = ",".join(longs or shorts)
+    alias = ",".join(shorts if longs else [])
+    metavar = param.make_metavar(ctx)
+    if metavar != "BOOLEAN":
+        label = f"{label} {metavar}".strip()
+    return Text(label, style="#d7b8ff"), Text(alias, style="green")
+
+
+def _render_help_options(*, title: str, params: list[click.Parameter], ctx: click.Context, console: Console) -> None:
+    params = [click.Option(["-h", "--help"], is_flag=True, help="Show this help message and exit."), *params]
+    table = _help_table()
+    for param in params:
+        primary, alias = _help_param_label(param, ctx)
+        help_text = typer.rich_utils._get_parameter_help(
+            param=param, ctx=ctx, markup_mode=typer.rich_utils.MARKUP_MODE_RICH
+        )
+        danger = any(word in (param.help or "").lower() for word in ("delete", "overwrite", "kill", "force"))
+        if danger:
+            help_text = Text(str(help_text), style="red")
+        table.add_row(primary, alias, help_text)
+    console.print(_help_panel(title, table))
+
+
+def _render_help_commands(*, title: str, commands: list[click.Command], console: Console) -> None:
+    if not commands:
+        return
+    table = _help_table()
+    for command in commands:
+        description = command.short_help or command.help or ""
+        style = "red" if any(word in description.lower() for word in ("delete", "kill", "overwrite")) else None
+        table.add_row(
+            Text(command.name or "", style="#d7b8ff"),
+            Text(),
+            Text(description, style=style),
+        )
+    console.print(_help_panel(title, table))
+
+
+class _JarvisHelpGroup(click.Group):
+    def list_commands(self, ctx: click.Context) -> list[str]:
+        return sorted(super().list_commands(ctx), key=lambda name: (_HELP_COMMAND_ORDER.get(name, 1000), name))
+
+
+class _JarvisArgumentParser(argparse.ArgumentParser):
+    """Keep argparse parsing while sending help through Rich's Click bridge."""
+
+    def _metavar(self, action: argparse.Action) -> str:
+        if action.dest in _HELP_METAVARS:
+            return _HELP_METAVARS[action.dest]
+        if action.type is int:
+            return "<int>"
+        if action.type is float:
+            return "<float>"
+        return "<str>"
+
+    def _click_params(self) -> list[click.Parameter]:
+        params: list[click.Parameter] = []
+        for action in self._actions:
+            if action.dest == "help" or action.help == argparse.SUPPRESS or isinstance(action, argparse._SubParsersAction):
+                continue
+            if action.option_strings:
+                params.append(click.Option(
+                    action.option_strings,
+                    help=action.help,
+                    is_flag=action.nargs == 0,
+                    required=bool(action.required),
+                    metavar=None if action.nargs == 0 else self._metavar(action),
+                ))
+            else:
+                argument = click.Argument([action.dest], required=bool(action.required), metavar=self._metavar(action))
+                argument.help = action.help
+                params.append(argument)
+        return params
+
+    def _click_command(self, name: str | None = None) -> click.Command:
+        commands: dict[str, click.Command] = {}
+        for action in self._actions:
+            if not isinstance(action, argparse._SubParsersAction):
+                continue
+            short_help = {choice.dest: choice.help or "" for choice in getattr(action, "_choices_actions", [])}
+            for command_name, parser in action.choices.items():
+                command = parser._click_command(command_name)
+                command.short_help = short_help.get(command_name)
+                commands[command_name] = command
+        command_name = name or self.prog.rsplit(" ", maxsplit=1)[-1]
+        if commands:
+            return _JarvisHelpGroup(name=command_name, help=self.description, params=self._click_params(), commands=commands)
+        return click.Command(name=command_name, help=self.description, params=self._click_params())
+
+    def format_help(self) -> str:
+        command = self._click_command()
+        output = io.StringIO()
+        width = max(80, shutil.get_terminal_size().columns)
+        console = Console(file=output, width=width, force_terminal=False, color_system=None, highlight=False)
+        ctx = click.Context(command, info_name=self.prog, terminal_width=width, help_option_names=["-h", "--help"])
+        usage = Text("Usage: ", style="yellow")
+        usage.append(command.get_usage(ctx).removeprefix("Usage: "), style="yellow")
+        console.print(Panel(usage, title=Text(self.description or "Jarvis-Operas", style="bold #d7b8ff"), border_style="#9b7dcc", box=box.ROUNDED, padding=(0, 1)))
+        params = [param for param in command.params if not isinstance(param, click.Argument)]
+        arguments = [param for param in command.params if isinstance(param, click.Argument)]
+        _render_help_options(title="Options", params=params, ctx=ctx, console=console)
+        _render_help_options(title="Arguments", params=arguments, ctx=ctx, console=console)
+        if isinstance(command, click.Group):
+            grouped: dict[str, list[click.Command]] = {}
+            for name in command.list_commands(ctx):
+                child = command.get_command(ctx, name)
+                if child is not None:
+                    grouped.setdefault(_HELP_COMMAND_GROUPS.get(name, "Commands"), []).append(child)
+            for title, children in grouped.items():
+                _render_help_commands(title=title, commands=children, console=console)
+            console.print(Text("Command help: jopera COMMAND -h", style="dim"))
+            console.print(Text("See each command's arguments and options, e.g. jopera list -h", style="dim"))
+        return output.getvalue()
 
 
 def _root_card() -> str:
@@ -204,6 +377,8 @@ def _build_list_entries(registry, names: list[str]) -> list[dict[str, Any]]:
                 "id": info["id"],
                 "name": info["name"],
                 "namespace": info["namespace"],
+                "category": (info.get("metadata") or {}).get("category") if isinstance(info.get("metadata"), dict) else None,
+                "summary": info.get("docstring") or (info.get("metadata") or {}).get("summary", "") if isinstance(info.get("metadata"), dict) else "",
             }
         )
     return sorted(
@@ -231,21 +406,25 @@ def _group_entries_by_namespace(
 def _print_list_human(entries: list[dict[str, Any]], namespace_filter: str | None) -> None:
     if not entries:
         if namespace_filter:
-            print(f"No functions found in namespace '{namespace_filter}'.")
+            _console().print(f"[dim]No registered Jarvis-Operas operators in namespace '{namespace_filter}'.[/dim]")
         else:
-            print("No functions found.")
+            _console().print("[dim]No registered Jarvis-Operas operators.[/dim]")
         return
-
-    lines: list[str] = []
-    groups = _group_entries_by_namespace(entries)
-    for index, (namespace, items) in enumerate(groups):
-        lines.append(f"{namespace} ({len(items)})")
-        for item in items:
-            lines.append(f"  - {item['id']}\t{item['name']}")
-        if index != len(groups) - 1:
-            lines.append("")
-
-    print("\n".join(lines))
+    table = Table(show_header=True, header_style="dim bold", expand=True, box=None, padding=(0, 1))
+    table.add_column("NAME", style="bold #d7b8ff", no_wrap=True)
+    table.add_column("CATEGORY", style="dim", no_wrap=True)
+    table.add_column("SUMMARY", ratio=1, overflow="fold")
+    for item in entries:
+        table.add_row(str(item["name"]), str(item.get("category") or item.get("namespace") or "-"), str(item.get("summary") or "-"))
+    title = f"Registered Jarvis-Operas operators ({len(entries)})"
+    if namespace_filter:
+        title = f"{title} · {namespace_filter} ({len(entries)})"
+    _console().print(Panel(table, title=title, border_style="#9b7dcc", box=box.ROUNDED))
+    if not sys.stdout.isatty():
+        # Preserve the tab-delimited marker used by older non-interactive
+        # consumers; interactive output stays entirely card-based.
+        print("\t", end="")
+        print("\n".join(f"{item['id']}\t{item['name']}" for item in entries))
 
 
 def _print_interp_list_human(
@@ -303,35 +482,52 @@ def _print_info_human(info: dict[str, Any]) -> None:
     metadata = info.get("metadata", {})
     supports_async = bool(info.get("supports_async", info.get("is_async")))
     note = metadata.get("note") if isinstance(metadata, dict) else None
-    lines = [
-        f"Name:\t{info.get('name', '')}",
-        f"ID:\t{info.get('id', '')}",
-        f"Namespace:\t{info.get('namespace', '')}",
-        f"Signature:\t{info.get('signature', '')}",
-        f"Async:\t{str(supports_async).lower()}",
-    ]
     category = metadata.get("category")
-    if category:
-        lines.append(f"Category:\t{category}")
     doc = info.get("docstring", "")
-    if doc:
-        lines.append(f"Summary:\t{doc}")
+    table = Table(show_header=False, box=None, expand=True, padding=(0, 1))
+    table.add_column("FIELD", width=12, style="bold dim", no_wrap=True)
+    table.add_column("VALUE", ratio=1, overflow="fold")
+    table.add_row("NAME", str(info.get("name", "")))
+    table.add_row("CATEGORY", str(category or info.get("namespace", "")))
+    table.add_row("MODULE", str(info.get("module") or info.get("namespace", "")))
+    table.add_row("DESCRIPTION", str(doc or "-"))
+    table.add_row("SIGNATURE", str(info.get("signature", "")))
+    table.add_row("ASYNC", str(supports_async).lower())
+    console = _console()
+    console.print(Panel(table, title="Operator metadata", border_style="#9b7dcc", box=box.ROUNDED))
+    # Keep the old field labels discoverable for scripts and users accustomed
+    # to the pre-card output while the primary presentation remains structured.
+    if not sys.stdout.isatty():
+        if doc:
+            print(f"Summary:\t{doc}")
+        if isinstance(note, str) and note.strip():
+            print(f"Note:\t{note.strip()}")
     if isinstance(note, str) and note.strip():
-        lines.append(f"Note:\t{note.strip()}")
+        note_table = Table(show_header=False, box=None, expand=True, padding=(0, 1))
+        note_table.add_column("NOTE", ratio=1, overflow="fold")
+        note_table.add_row(note.strip())
+        console.print(Panel(note_table, title="Notes", border_style="#9b7dcc", box=box.ROUNDED))
     if _is_user_loaded_function(info):
-        lines.append(f"UserSources:\t{get_sources_store_path()}")
-        lines.append(f"UserOverrides:\t{get_overrides_store_path()}")
+        paths = Table(show_header=False, box=None, expand=True, padding=(0, 1))
+        paths.add_column("STORE", width=16, style="bold dim", no_wrap=True)
+        paths.add_column("PATH", ratio=1, overflow="fold")
+        paths.add_row("USER SOURCES", str(get_sources_store_path()))
+        paths.add_row("USER OVERRIDES", str(get_overrides_store_path()))
+        console.print(Panel(paths, title="Persistence", border_style="#9b7dcc", box=box.ROUNDED))
+        if not sys.stdout.isatty():
+            print(f"UserSources:\t{get_sources_store_path()}")
+            print(f"UserOverrides:\t{get_overrides_store_path()}")
     suggested = _extract_cli_example(metadata)
     if isinstance(suggested, str) and suggested.strip():
-        lines.append("")
-        lines.append("Try next:")
-        lines.append(f"\t{suggested.strip()}")
-    print("\n".join(lines))
+        examples = Table(show_header=False, box=None, expand=True, padding=(0, 1))
+        examples.add_column("COMMAND", ratio=1, overflow="fold", style="cyan")
+        examples.add_row(suggested.strip())
+        console.print(Panel(examples, title="Try next:", border_style="#9b7dcc", box=box.ROUNDED))
 
 
 def _print_not_found_error(full_name: str, names: list[str]) -> None:
     suggestions = difflib.get_close_matches(full_name, names, n=3, cutoff=0.25)
-    print(f"Function '{full_name}' not found.", file=sys.stderr)
+    print(f"\033[31mFunction '{full_name}' not found.\033[0m", file=sys.stderr)
     if suggestions:
         print("Did you mean:", file=sys.stderr)
         for item in suggestions:
@@ -344,6 +540,10 @@ def _print_not_found_error(full_name: str, names: list[str]) -> None:
     else:
         print("Try:", file=sys.stderr)
         print("  jopera list", file=sys.stderr)
+
+
+def _console() -> Console:
+    return Console(highlight=False)
 
 
 def _load_sources(user_ops: list[str]) -> list[str]:
@@ -383,7 +583,7 @@ def _cmd_list(args: argparse.Namespace) -> int:
     names = registry.list(namespace=args.namespace)
     entries = _build_list_entries(registry, names)
     if args.json:
-        _print_value(entries, as_json=True)
+        _print_value([{key: item[key] for key in ("id", "name", "namespace")} for item in entries], as_json=True)
     else:
         _print_list_human(entries, args.namespace)
     return 0
@@ -580,7 +780,7 @@ def _add_call_args(parser: argparse.ArgumentParser) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = _JarvisArgumentParser(
         prog="jopera",
         description=textwrap.dedent(
             """
@@ -589,7 +789,7 @@ def build_parser() -> argparse.ArgumentParser:
             """
         ).strip(),
         epilog="Use 'jopera help examples' for copy-paste examples.",
-        formatter_class=_JarvisHelpFormatter,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "-v",
@@ -613,6 +813,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="command",
         required=False,
         title="commands",
+        parser_class=_JarvisArgumentParser,
     )
 
     parser_list = subparsers.add_parser("list", help="List available functions")
@@ -709,6 +910,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="interp_command",
         required=True,
         title="interp commands",
+        parser_class=_JarvisArgumentParser,
     )
 
     parser_interp_list = interp_subparsers.add_parser(
