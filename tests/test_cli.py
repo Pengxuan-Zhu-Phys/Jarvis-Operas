@@ -101,6 +101,16 @@ def test_cli_list_cards_separate_records_with_dim_lines(capsys) -> None:
     assert output.count("─") >= 2
 
 
+def test_cli_list_card_title_is_top_left(capsys) -> None:
+    cli_mod._print_list_human(
+        [{"id": "x1234", "name": "demo.first", "namespace": "demo", "category": "demo", "summary": "First."}],
+        namespace_filter=None,
+    )
+    first_line = capsys.readouterr().out.splitlines()[0]
+
+    assert first_line.startswith("╭─ Registered Jarvis-Operas · demo (1)")
+
+
 def test_cli_no_args_shows_start_card() -> None:
     result = _run_cli()
 
