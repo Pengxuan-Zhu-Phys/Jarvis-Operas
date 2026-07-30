@@ -46,6 +46,15 @@ def test_cli_list_human_output_groups_namespace() -> None:
     assert re.search(r"\b[a-z][0-9]{3,5}\b", result.stdout)
 
 
+def test_cli_list_human_output_uses_one_card_per_namespace() -> None:
+    result = _run_cli("list")
+
+    assert result.returncode == 0, result.stderr
+    assert "Registered Jarvis-Operas · helper (" in result.stdout
+    assert "Registered Jarvis-Operas · math (" in result.stdout
+    assert result.stdout.count("Registered Jarvis-Operas · ") >= 3
+
+
 def test_cli_no_args_shows_start_card() -> None:
     result = _run_cli()
 

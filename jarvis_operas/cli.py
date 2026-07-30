@@ -410,16 +410,27 @@ def _print_list_human(entries: list[dict[str, Any]], namespace_filter: str | Non
         else:
             _console().print("[dim]No registered Jarvis-Operas operators.[/dim]")
         return
-    table = Table(show_header=True, header_style="dim bold", expand=True, box=None, padding=(0, 1))
-    table.add_column("NAME", style="bold #d7b8ff", no_wrap=True)
-    table.add_column("CATEGORY", style="dim", no_wrap=True)
-    table.add_column("SUMMARY", ratio=1, overflow="fold")
-    for item in entries:
-        table.add_row(str(item["name"]), str(item.get("category") or item.get("namespace") or "-"), str(item.get("summary") or "-"))
-    title = f"Registered Jarvis-Operas operators ({len(entries)})"
-    if namespace_filter:
-        title = f"{title} · {namespace_filter} ({len(entries)})"
-    _console().print(Panel(table, title=title, border_style="#9b7dcc", box=box.ROUNDED))
+    console = _console()
+    groups = _group_entries_by_namespace(entries)
+    for namespace, namespace_entries in groups:
+        table = Table(show_header=True, header_style="dim bold", expand=True, box=None, padding=(0, 1))
+        table.add_column("NAME", style="bold #d7b8ff", no_wrap=True)
+        table.add_column("CATEGORY", style="dim", no_wrap=True)
+        table.add_column("SUMMARY", ratio=1, overflow="fold")
+        for item in namespace_entries:
+            table.add_row(
+                str(item["name"]),
+                str(item.get("category") or namespace or "-"),
+                str(item.get("summary") or "-"),
+            )
+        console.print(
+            Panel(
+                table,
+                title=f"Registered Jarvis-Operas · {namespace} ({len(namespace_entries)})",
+                border_style="#9b7dcc",
+                box=box.ROUNDED,
+            )
+        )
     if not sys.stdout.isatty():
         # Preserve the tab-delimited marker used by older non-interactive
         # consumers; interactive output stays entirely card-based.
