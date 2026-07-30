@@ -65,6 +65,26 @@ def test_cli_list_cards_reuse_fixed_column_positions() -> None:
     assert len({line.index("SUMMARY") for line in header_lines}) == 1
 
 
+def test_cli_list_cards_fold_long_values_without_ellipsis(capsys) -> None:
+    cli_mod._print_list_human(
+        [
+            {
+                "id": "x1234",
+                "name": "very_long_namespace.operator_with_a_long_name",
+                "namespace": "very_long_namespace",
+                "category": "a_category_name_that_is_longer_than_the_column",
+                "summary": "A long operator summary that should wrap inside the card.",
+            }
+        ],
+        namespace_filter=None,
+    )
+    output = capsys.readouterr().out
+
+    assert "…" not in output
+    assert "very_long_namespace" in output
+    assert "operator_with_a_long_name" in output
+
+
 def test_cli_no_args_shows_start_card() -> None:
     result = _run_cli()
 
