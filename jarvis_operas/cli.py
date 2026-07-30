@@ -55,8 +55,8 @@ def _resolve_version() -> str:
 
 _HELP_PRIMARY_COLUMN_WIDTH = 24
 _HELP_ALIAS_COLUMN_WIDTH = 6
-_LIST_NAME_COLUMN_WIDTH = 32
-_LIST_CATEGORY_COLUMN_WIDTH = 24
+_LIST_NAME_COLUMN_WIDTH = 28
+_LIST_CATEGORY_COLUMN_WIDTH = 18
 _HELP_COMMAND_ORDER = {
     "list": 10,
     "info": 20,
@@ -415,7 +415,15 @@ def _print_list_human(entries: list[dict[str, Any]], namespace_filter: str | Non
     console = _console()
     groups = _group_entries_by_namespace(entries)
     for namespace, namespace_entries in groups:
-        table = Table(show_header=True, header_style="dim bold", expand=True, box=None, padding=(0, 1))
+        table = Table(
+            show_header=True,
+            header_style="dim bold",
+            expand=True,
+            box=box.MINIMAL,
+            show_lines=True,
+            border_style="dim",
+            padding=(0, 1),
+        )
         table.add_column("NAME", style="bold #d7b8ff", width=_LIST_NAME_COLUMN_WIDTH, overflow="fold")
         table.add_column("CATEGORY", style="dim", width=_LIST_CATEGORY_COLUMN_WIDTH, overflow="fold")
         table.add_column("SUMMARY", ratio=1, overflow="fold")
