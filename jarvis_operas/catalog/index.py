@@ -6,7 +6,9 @@ from ..core.spec import OperaFunction
 from ..curves import build_interpolation_declarations, list_interpolation_namespaces
 from ..namespaces.cmb import DECLARATIONS as CMB_DECLARATIONS
 from ..namespaces.helper import DECLARATIONS as HELPER_DECLARATIONS
+from ..namespaces.hts import DECLARATIONS as HTS_DECLARATIONS
 from ..namespaces.math import DECLARATIONS as MATH_DECLARATIONS
+from ..namespaces.pdg import DECLARATIONS as PDG_DECLARATIONS
 from ..namespaces.stat import DECLARATIONS as STAT_DECLARATIONS
 
 NAMESPACE_DECLARATIONS: dict[str, Sequence[OperaFunction]] = {
@@ -14,6 +16,8 @@ NAMESPACE_DECLARATIONS: dict[str, Sequence[OperaFunction]] = {
     "math": MATH_DECLARATIONS,
     "stat": STAT_DECLARATIONS,
     "helper": HELPER_DECLARATIONS,
+    "HTs": HTS_DECLARATIONS,
+    "pdg": PDG_DECLARATIONS,
 }
 # Backward-compat alias for callers importing old symbol name.
 NAMESPACE_LOADERS = NAMESPACE_DECLARATIONS
