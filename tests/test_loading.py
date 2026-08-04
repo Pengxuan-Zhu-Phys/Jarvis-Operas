@@ -129,3 +129,43 @@ def test_load_user_ops_rejects_protected_namespace(tmp_path) -> None:
         load_user_ops(str(op_file), registry, namespace="math")
 
     assert "protected" in str(exc.value).lower()
+
+
+def test_load_user_ops_replaces_existing_decorator_definition_on_reload(tmp_path) -> None:
+    op_file = tmp_path / "reload_ops.py"
+    op_file.write_text(
+        textwrap.dedent(
+            """
+            from jarvis_operas import oper
+
+            @oper("scale")
+            def scale(x):
+                return x * 2
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    registry = OperasRegistry()
+    first_loaded = load_user_ops(str(op_file), registry)
+
+    assert first_loaded == ["reload_ops.scale"]
+    assert registry.call("reload_ops.scale", x=3) == 6
+
+    op_file.write_text(
+        textwrap.dedent(
+            """
+            from jarvis_operas import oper
+
+            @oper("scale")
+            def scale(x):
+                return x * 5
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    second_loaded = load_user_ops(str(op_file), registry)
+
+    assert second_loaded == ["reload_ops.scale"]
+    assert registry.call("reload_ops.scale", x=3) == 15

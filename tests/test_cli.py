@@ -36,6 +36,37 @@ def test_cli_list_contains_builtin_add() -> None:
     assert all(re.match(r"^[a-z][0-9]{3,5}$", item["id"]) for item in payload)
 
 
+def test_cli_namespaces_lists_registered_names_and_counts() -> None:
+    result = _run_cli("namespaces", "--json")
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload == sorted(payload, key=lambda item: item["namespace"])
+    assert {"namespace", "function_count", "description"} == set(payload[0])
+    math_entry = next(item for item in payload if item["namespace"] == "math")
+    assert math_entry["function_count"] >= 1
+    assert math_entry["description"] == "Numeric helper functions"
+
+
+def test_namespace_descriptions_identify_direct_detection_limit_libraries() -> None:
+    assert cli_mod._namespace_description("dmddxn") == (
+        "Dark-matter–nucleon direct-detection experimental upper-limit curves"
+    )
+    assert cli_mod._namespace_description("dmddxe") == (
+        "Dark-matter electron-scattering experimental upper-limit curves"
+    )
+
+
+def test_cli_namespaces_human_output_is_tabular() -> None:
+    result = _run_cli("namespaces")
+
+    assert result.returncode == 0, result.stderr
+    assert "Registered namespaces" in result.stdout
+    assert "NAMESPACE" in result.stdout
+    assert "DESCRIPTION" in result.stdout
+    assert "math" in result.stdout
+
+
 def test_cli_list_human_output_groups_namespace() -> None:
     result = _run_cli("list", "--namespace", "math")
 
@@ -260,6 +291,59 @@ def test_print_info_human_hides_metadata_and_shows_note(capsys) -> None:
     assert "Metadata:\t" not in out
 
 
+def test_format_operator_summary_constants_two_lines() -> None:
+    info = {
+        "docstring": "Z boson pole mass.",
+        "metadata": {
+            "category": "constant",
+            "value": 91.1876,
+            "unit": "GeV",
+            "summary": "Z boson pole mass.",
+        },
+    }
+    text = cli_mod._format_operator_summary(info)
+    assert text == "91.1876 GeV\nZ boson pole mass."
+
+    dimensionless = {
+        "docstring": "Fine-structure constant.",
+        "metadata": {"value": 7.2973525693e-3, "unit": "1", "summary": "Fine-structure constant."},
+    }
+    assert cli_mod._format_operator_summary(dimensionless) == (
+        "0.0072973525693\nFine-structure constant."
+    )
+
+
+def test_cli_list_pdg_summary_shows_value_and_unit() -> None:
+    result = _run_cli("list", "--namespace", "pdg")
+    assert result.returncode == 0, result.stderr
+    assert "91.1876 GeV" in result.stdout
+    assert "Z boson pole mass." in result.stdout
+    assert "197.3269804 MeV·fm" in result.stdout
+
+
+def test_print_info_human_constant_summary_two_lines(capsys) -> None:
+    info = {
+        "name": "pdg.mZ",
+        "id": "p12345",
+        "namespace": "pdg",
+        "signature": "()",
+        "supports_async": True,
+        "docstring": "Z boson pole mass.",
+        "metadata": {
+            "category": "constant",
+            "value": 91.1876,
+            "unit": "GeV",
+            "summary": "Z boson pole mass.",
+            "examples": ["pdg.mZ"],
+        },
+    }
+    cli_mod._print_info_human(info)
+    out = capsys.readouterr().out
+    assert "91.1876 GeV" in out
+    assert "Z boson pole mass." in out
+    assert "Summary:\t91.1876 GeV" in out
+
+
 def test_print_info_human_uses_metadata_examples_for_try_next(capsys) -> None:
     info = {
         "name": "helper.eggbox",
@@ -385,6 +469,49 @@ def test_cli_load_persists_for_new_process(tmp_path) -> None:
     assert "user_store" in info_payload
     assert info_payload["user_store"]["sources_path"].endswith("sources.json")
     assert info_payload["user_store"]["overrides_path"].endswith("overrides.json")
+
+
+def test_cli_load_reloads_persisted_source_with_updated_definition(tmp_path) -> None:
+    op_file = tmp_path / "reload_cli_ops.py"
+    op_file.write_text(
+        textwrap.dedent(
+            """
+            def plus_one(x):
+                return x + 1
+
+            __JARVIS_OPERAS__ = {
+                "plus_one": plus_one,
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    store_path = tmp_path / "persist_store.json"
+    env = {"JARVIS_OPERAS_PERSIST_FILE": str(store_path)}
+
+    first = _run_cli("load", str(op_file), env=env)
+    assert first.returncode == 0, first.stderr
+
+    op_file.write_text(
+        textwrap.dedent(
+            """
+            def plus_one(x):
+                return x + 2
+
+            __JARVIS_OPERAS__ = {
+                "plus_one": plus_one,
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    second = _run_cli("load", str(op_file), env=env)
+    assert second.returncode == 0, second.stderr
+
+    third = _run_cli("call", "reload_cli_ops.plus_one", "--arg", "x=10", env=env)
+    assert third.returncode == 0, third.stderr
+    assert third.stdout.strip() == "12"
 
 
 def test_cli_load_session_only_does_not_persist(tmp_path) -> None:

@@ -47,13 +47,20 @@ from .persistence import (
 )
 
 if TYPE_CHECKING:
-    from .integration import build_register_dicts, build_sympy_dicts, func_locals, numeric_funcs
+    from .integration import (
+        build_constant_dicts,
+        build_register_dicts,
+        build_sympy_dicts,
+        func_locals,
+        numeric_funcs,
+    )
 
     operas_registry: OperasRegistry
     operas: Operas
 
 _LAZY_INTEGRATION_EXPORTS = frozenset(
     {
+        "build_constant_dicts",
         "build_register_dicts",
         "build_sympy_dicts",
         "func_locals",
@@ -69,6 +76,7 @@ __all__ = [
     "OperatorConflict",
     "OperatorLoadError",
     "OperatorCallError",
+    "build_constant_dicts",
     "build_register_dicts",
     "build_sympy_dicts",
     "get_logger",

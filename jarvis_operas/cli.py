@@ -57,7 +57,20 @@ _HELP_PRIMARY_COLUMN_WIDTH = 24
 _HELP_ALIAS_COLUMN_WIDTH = 6
 _LIST_NAME_COLUMN_WIDTH = 28
 _LIST_CATEGORY_COLUMN_WIDTH = 18
+_NAMESPACE_DESCRIPTIONS = {
+    "HTs": "Optional HiggsTools evaluator",
+    "cmb": "CMB models and likelihoods",
+    "dmddxe": "Dark-matter electron-scattering experimental upper-limit curves",
+    "dmddxn": "Dark-matter–nucleon direct-detection experimental upper-limit curves",
+    "helper": "HEP scan helper functions",
+    "interp": "General interpolation functions",
+    "interp1": "General one-dimensional interpolation examples",
+    "math": "Numeric helper functions",
+    "pdg": "PDG particle-data constants (namespace.constant form)",
+    "stat": "Statistical functions",
+}
 _HELP_COMMAND_ORDER = {
+    "namespaces": 5,
     "list": 10,
     "info": 20,
     "call": 30,
@@ -69,6 +82,7 @@ _HELP_COMMAND_ORDER = {
     "validate": 10,
 }
 _HELP_COMMAND_GROUPS = {
+    "namespaces": "Discovery",
     "list": "Discovery",
     "info": "Inspection",
     "call": "Execution",
@@ -239,6 +253,7 @@ def _root_card() -> str:
 
         Start here:
           jopera init
+          jopera namespaces
           jopera list
           jopera info helper.eggbox
           jopera call math.add --kwargs '{"a":1,"b":2}'
@@ -261,6 +276,7 @@ def _examples_card() -> str:
         Quick examples:
           jopera init
           jopera init --manifest ./manifest.json
+          jopera namespaces
           jopera list
           jopera list --namespace helper
           jopera info stat.chi2_cov
@@ -370,17 +386,94 @@ def _print_value(value: Any, as_json: bool) -> None:
     print(safe_value)
 
 
+def _plain_summary_text(info: Mapping[str, Any] | dict[str, Any]) -> str:
+    """Return the textual summary line (no value/unit decoration)."""
+
+    metadata = info.get("metadata") if isinstance(info.get("metadata"), dict) else {}
+    doc = info.get("docstring")
+    if isinstance(doc, str) and doc.strip():
+        return doc.strip()
+    if isinstance(metadata, dict):
+        summary = metadata.get("summary")
+        if isinstance(summary, str) and summary.strip():
+            return summary.strip()
+    return ""
+
+
+# Constant value/unit line in list/info cards — keep brighter than body text.
+_CONSTANT_VALUE_STYLE = "bold bright_cyan"
+_CONSTANT_UNIT_STYLE = "bold cyan"
+
+
+def _format_operator_summary(info: Mapping[str, Any] | dict[str, Any]) -> str:
+    """Human-facing SUMMARY / DESCRIPTION text.
+
+    Constants (metadata carries ``value``) render as two lines:
+
+        <value> <unit>
+        <textual summary>
+
+    Ordinary operators keep a single-line summary.
+    """
+
+    text = _plain_summary_text(info)
+    metadata = info.get("metadata") if isinstance(info.get("metadata"), dict) else {}
+    if not isinstance(metadata, dict) or "value" not in metadata or metadata.get("value") is None:
+        return text or "-"
+
+    value = metadata["value"]
+    unit = metadata.get("unit")
+    unit_str = str(unit).strip() if unit is not None else ""
+    # Dimensionless constants store unit as "1"; show bare number then.
+    if unit_str and unit_str != "1":
+        value_line = f"{value} {unit_str}"
+    else:
+        value_line = f"{value}"
+    if text:
+        return f"{value_line}\n{text}"
+    return value_line
+
+
+def _render_summary_display(summary: str, *, highlight_constant_value: bool = True) -> Text:
+    """Rich-render a summary cell; highlight constant value/unit on the first line."""
+
+    raw = str(summary or "-")
+    if not highlight_constant_value:
+        return Text(raw)
+
+    lines = raw.splitlines()
+    # Constants are "value[+unit]\\nexplanation"; single-line entries stay plain.
+    if len(lines) < 2:
+        return Text(raw)
+
+    value_line = lines[0]
+    body = "\n".join(lines[1:])
+    rendered = Text()
+    parts = value_line.split(None, 1)
+    if len(parts) == 2:
+        rendered.append(parts[0], style=_CONSTANT_VALUE_STYLE)
+        rendered.append(" ")
+        rendered.append(parts[1], style=_CONSTANT_UNIT_STYLE)
+    else:
+        rendered.append(value_line, style=_CONSTANT_VALUE_STYLE)
+    if body:
+        rendered.append("\n")
+        rendered.append(body)
+    return rendered
+
+
 def _build_list_entries(registry, names: list[str]) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     for full_name in names:
         info = registry.info(full_name)
+        metadata = info.get("metadata") if isinstance(info.get("metadata"), dict) else {}
         entries.append(
             {
                 "id": info["id"],
                 "name": info["name"],
                 "namespace": info["namespace"],
-                "category": (info.get("metadata") or {}).get("category") if isinstance(info.get("metadata"), dict) else None,
-                "summary": info.get("docstring") or (info.get("metadata") or {}).get("summary", "") if isinstance(info.get("metadata"), dict) else "",
+                "category": metadata.get("category") if isinstance(metadata, dict) else None,
+                "summary": _format_operator_summary(info),
             }
         )
     return sorted(
@@ -431,7 +524,7 @@ def _print_list_human(entries: list[dict[str, Any]], namespace_filter: str | Non
             table.add_row(
                 str(item["name"]),
                 str(item.get("category") or namespace or "-"),
-                str(item.get("summary") or "-"),
+                _render_summary_display(str(item.get("summary") or "-")),
             )
         console.print(
             Panel(
@@ -471,6 +564,60 @@ def _print_interp_list_human(
     print("\n".join(lines))
 
 
+def _build_namespace_entries(registry: OperasRegistry) -> list[dict[str, Any]]:
+    counts: dict[str, int] = {}
+    for full_name in registry.list():
+        namespace, _, _ = full_name.partition(".")
+        counts[namespace] = counts.get(namespace, 0) + 1
+    return [
+        {
+            "namespace": namespace,
+            "function_count": count,
+            "description": _namespace_description(namespace),
+        }
+        for namespace, count in sorted(counts.items())
+    ]
+
+
+def _namespace_description(namespace: str) -> str:
+    known = _NAMESPACE_DESCRIPTIONS.get(namespace)
+    if known is not None:
+        return known
+    if is_protected_namespace(namespace):
+        return "Built-in operator functions"
+    return "User-defined operator functions"
+
+
+def _print_namespace_list_human(entries: list[dict[str, Any]]) -> None:
+    table = Table(show_header=True, header_style="bold #d7b8ff", box=None, expand=True)
+    table.add_column("NAMESPACE", width=20)
+    table.add_column("FUNCTIONS", justify="right", width=10)
+    table.add_column("DESCRIPTION", ratio=1, overflow="fold")
+    for entry in entries:
+        table.add_row(
+            str(entry["namespace"]),
+            str(entry["function_count"]),
+            str(entry["description"]),
+        )
+    _console().print(
+        Panel(
+            table,
+            title=f"Registered namespaces ({len(entries)})",
+            title_align="left",
+            border_style="#9b7dcc",
+            box=box.ROUNDED,
+        )
+    )
+    if not sys.stdout.isatty():
+        print("\t", end="")
+        print(
+            "\n".join(
+                f"{item['namespace']}\t{item['function_count']}\t{item['description']}"
+                for item in entries
+            )
+        )
+
+
 def _extract_cli_example(metadata: Any) -> str | None:
     if not isinstance(metadata, dict):
         return None
@@ -505,14 +652,14 @@ def _print_info_human(info: dict[str, Any]) -> None:
     supports_async = bool(info.get("supports_async", info.get("is_async")))
     note = metadata.get("note") if isinstance(metadata, dict) else None
     category = metadata.get("category")
-    doc = info.get("docstring", "")
+    description = _format_operator_summary(info)
     table = Table(show_header=False, box=None, expand=True, padding=(0, 1))
     table.add_column("FIELD", width=12, style="bold dim", no_wrap=True)
     table.add_column("VALUE", ratio=1, overflow="fold")
     table.add_row("NAME", str(info.get("name", "")))
     table.add_row("CATEGORY", str(category or info.get("namespace", "")))
     table.add_row("MODULE", str(info.get("module") or info.get("namespace", "")))
-    table.add_row("DESCRIPTION", str(doc or "-"))
+    table.add_row("DESCRIPTION", _render_summary_display(description))
     table.add_row("SIGNATURE", str(info.get("signature", "")))
     table.add_row("ASYNC", str(supports_async).lower())
     console = _console()
@@ -520,8 +667,11 @@ def _print_info_human(info: dict[str, Any]) -> None:
     # Keep the old field labels discoverable for scripts and users accustomed
     # to the pre-card output while the primary presentation remains structured.
     if not sys.stdout.isatty():
-        if doc:
-            print(f"Summary:\t{doc}")
+        if description and description != "-":
+            lines = description.splitlines() or [description]
+            print(f"Summary:\t{lines[0]}")
+            for line in lines[1:]:
+                print(f"\t{line}")
         if isinstance(note, str) and note.strip():
             print(f"Note:\t{note.strip()}")
     if isinstance(note, str) and note.strip():
@@ -608,6 +758,16 @@ def _cmd_list(args: argparse.Namespace) -> int:
         _print_value([{key: item[key] for key in ("id", "name", "namespace")} for item in entries], as_json=True)
     else:
         _print_list_human(entries, args.namespace)
+    return 0
+
+
+def _cmd_namespaces(args: argparse.Namespace) -> int:
+    registry = _registry_with_user_sources(args.user_ops)
+    entries = _build_namespace_entries(registry)
+    if args.json:
+        _print_value(entries, as_json=True)
+    else:
+        _print_namespace_list_human(entries)
     return 0
 
 
@@ -848,6 +1008,16 @@ def build_parser() -> argparse.ArgumentParser:
     _add_log_mode_arg(parser_list)
     _add_source_args(parser_list)
     parser_list.set_defaults(func=_cmd_list)
+
+    parser_namespaces = subparsers.add_parser("namespaces", help="List registered namespaces")
+    parser_namespaces.add_argument(
+        "--json",
+        action="store_true",
+        help="Output JSON records with namespace, function_count, and description.",
+    )
+    _add_log_mode_arg(parser_namespaces)
+    _add_source_args(parser_namespaces)
+    parser_namespaces.set_defaults(func=_cmd_namespaces)
 
     parser_info = subparsers.add_parser("info", help="Show function metadata")
     parser_info.add_argument("target", help="Full function name or function id")

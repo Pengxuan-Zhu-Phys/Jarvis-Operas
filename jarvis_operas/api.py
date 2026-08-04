@@ -15,9 +15,12 @@ from .curves import init_builtin_curve_cache, register_hot_curves_in_registry
 from .logging import get_logger
 from .namespace_policy import ensure_user_namespace_allowed
 from .registration import (
+    current_metadata_override,
     current_namespace_override,
+    current_replace_existing_names,
     current_registry_override,
     make_operafunction,
+    note_registered_name,
 )
 _global_operas_registry: OperasRegistry | None = None
 _global_operas: Operas | None = None
@@ -109,14 +112,25 @@ def oper(
             target_namespace,
             action="@oper registration",
         )
-        target_registry.register(
-            make_operafunction(
-                namespace=target_namespace,
-                name=name,
-                fn=fn,
-                metadata=metadata or None,
-            )
+        resolved_metadata = dict(metadata or {})
+        loader_metadata = current_metadata_override()
+        if loader_metadata:
+            resolved_metadata.update(loader_metadata)
+        declaration = make_operafunction(
+            namespace=target_namespace,
+            name=name,
+            fn=fn,
+            metadata=resolved_metadata or None,
         )
+        replace_existing_names = current_replace_existing_names()
+        target_registry.register(
+            declaration,
+            replace=(
+                replace_existing_names is not None
+                and declaration.full_name in replace_existing_names
+            ),
+        )
+        note_registered_name(declaration.full_name)
         return fn
 
     return decorator

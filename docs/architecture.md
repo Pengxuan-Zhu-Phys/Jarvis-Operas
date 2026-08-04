@@ -41,6 +41,7 @@ Runtime call contract:
   - static namespace declaration aggregation.
 - `jarvis_operas/loading.py`
   - user source loading (`@oper` or `__JARVIS_OPERAS__` map).
+  - repeated loads replace existing user operators with the same full name.
 - `jarvis_operas/persistence.py`
   - persisted user source and override stores.
 - `jarvis_operas/curves.py` and `curve_*.py`
@@ -59,6 +60,13 @@ Not allowed at runtime:
 - Direct modification of JO internal/private symbols.
 
 This keeps JO behavior deterministic like a base library.
+
+## User Source Reload Semantics
+
+- `load_user_ops(...)` and `jopera load` execute the current source text on each load.
+- If a user operator resolves to an existing `<namespace>.<name>`, the new declaration replaces the old one.
+- Replacement is scoped to user operators only; protected built-in namespaces remain guarded.
+- Removing a function from a source file does not imply registry deletion; delete/rename remains explicit override behavior.
 
 ## Backend and Async Rules
 

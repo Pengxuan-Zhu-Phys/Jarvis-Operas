@@ -38,8 +38,9 @@ Every function is an `OperaFunction` object with metadata.
 Supported user workflow:
 
 1. `jopera load /path/to/user_ops.py` (or Python `persist_user_ops(...)`)
-2. JO stores source snapshots and persistent registry metadata.
-3. New Python process loads persisted user functions during global registry bootstrap.
+2. JO loads the current source text, stores a managed snapshot, and replaces already-registered user operators with matching `<namespace>.<name>`.
+3. New Python process loads persisted user functions during global registry bootstrap from the managed snapshot.
+4. Functions removed from the script are not auto-deleted; treat delete/rename as explicit override actions.
 
 Persistence files:
 

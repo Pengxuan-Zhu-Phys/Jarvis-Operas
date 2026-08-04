@@ -60,6 +60,11 @@ def test_refresh_sympy_dicts_if_global_registry_updates_module_level_dicts(monke
         "build_register_dicts",
         lambda registry=None: {"dmddxn.LZSI2024": lambda x: x + 1.0},
     )
+    monkeypatch.setattr(
+        integration,
+        "build_constant_dicts",
+        lambda registry=None: {},
+    )
 
     old_func_locals = integration.func_locals
     old_numeric_funcs = integration.numeric_funcs

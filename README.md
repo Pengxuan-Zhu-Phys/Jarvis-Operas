@@ -61,6 +61,8 @@ CLI behavior:
 - `jopera list --json` prints machine-readable JSON objects with `id/name/namespace`
 - `jopera info <name_or_id>` prints metadata (including a unique id) and a suggested next command
 - `jopera load <path>` persists a JO-managed source snapshot for future processes
+- Re-running `jopera load <path>` replaces existing user operators with the same `<namespace>.<name>`
+- Removing a function from a user source file does not auto-delete its prior registration
 - `jopera load <path> --session-only` loads without persisting
 - `jopera init` precompiles bundled interpolation manifest library
 - `jopera init --manifest <manifest.json>` precompiles a custom curve JSON manifest
@@ -150,6 +152,12 @@ registry = OperasRegistry()
 loaded = load_user_ops("./my_ops.py", registry)
 print(loaded)
 ```
+
+Reload behavior:
+
+- `load_user_ops(...)` and `jopera load` always execute the current source file contents
+- If a user operator resolves to an existing `<namespace>.<name>`, the new definition replaces the old one
+- If a function is removed from the file, JO does not auto-prune the old registration; delete/rename remains an explicit override action
 
 Persistent registration for future Python processes:
 

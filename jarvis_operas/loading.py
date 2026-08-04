@@ -42,6 +42,7 @@ def load_user_ops(
             action="user operator loading",
         )
         before_ops = set(registry.list())
+        loaded_during_exec: list[str] = []
         module_name = _build_module_name(module_path)
 
         spec = importlib.util.spec_from_file_location(module_name, module_path)
@@ -51,13 +52,24 @@ def load_user_ops(
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
         try:
-            with use_registry(registry, default_namespace=target_namespace):
-                spec.loader.exec_module(module)
+            source_code = compile(module_path.read_bytes(), str(module_path), "exec")
+            with use_registry(
+                registry,
+                default_namespace=target_namespace,
+                replace_existing_names=before_ops,
+                metadata_override={
+                    "source": "@oper",
+                    "path": str(module_path),
+                },
+                loaded_names=loaded_during_exec,
+            ):
+                exec(source_code, module.__dict__)
         except Exception:
             sys.modules.pop(module_name, None)
             raise
 
-        loaded = list(set(registry.list()) - before_ops)
+        loaded = list(loaded_during_exec)
+        loaded.extend(list(set(registry.list()) - before_ops))
 
         export_map = getattr(module, "__JARVIS_OPERAS__", None)
         if export_map is not None:
@@ -71,6 +83,7 @@ def load_user_ops(
                     name=str(op_name),
                     target=fn,
                     metadata={"source": "__JARVIS_OPERAS__", "path": str(module_path)},
+                    replace_existing_names=before_ops,
                 )
                 loaded.append(loaded_name)
 
@@ -171,6 +184,7 @@ def _register_user_target(
     name: str,
     target: Any,
     metadata: Mapping[str, Any] | None = None,
+    replace_existing_names: set[str] | frozenset[str] | list[str] | tuple[str, ...] | None = None,
 ) -> str:
     declaration = _to_declaration(
         namespace=namespace,
@@ -178,7 +192,15 @@ def _register_user_target(
         target=target,
         metadata=metadata,
     )
-    registry.register(declaration)
+    existing_names = (
+        None
+        if replace_existing_names is None
+        else frozenset(str(item) for item in replace_existing_names)
+    )
+    registry.register(
+        declaration,
+        replace=existing_names is not None and declaration.full_name in existing_names,
+    )
     return declaration.full_name
 
 

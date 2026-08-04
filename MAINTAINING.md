@@ -66,6 +66,8 @@ jopera call math.add --kwargs '{"a":1,"b":2}' --log-mode debug
 
 - Supported user write entry:
   - `jopera load ...` / `persist_user_ops(...)`
+- Re-running `jopera load ...` / `load_user_ops(...)` is the supported update path for user sources.
+- Same-name user functions are overwritten by the newest source; names removed from the file are not auto-deleted.
 - Developer-only write commands (`update`, `delete-func`, `delete-namespace`, `interp add/remove`) require `JARVIS_OPERAS_DEV_WRITE=1`.
 - Runtime jobs should treat JO as immutable function provider.
 
