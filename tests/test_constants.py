@@ -170,6 +170,48 @@ def test_constant_value_call_error_and_namespace_suggestion() -> None:
     assert "mZ" in message
 
 
+def test_constant_namespace_casefold_typo_suggests_mZ() -> None:
+    """D23.11: pdg.mz (most common case typo) should suggest mZ."""
+    registry = OperasRegistry()
+    _register_const(registry, "mZ", 91.1876)
+    _register_const(registry, "mt", 172.57)
+    _register_const(registry, "mh", 125.25)
+    parse_locals, _ = build_sympy_dicts(
+        build_register_dicts(registry),
+        constants=build_constant_dicts(registry),
+        include_all=True,
+    )
+    with pytest.raises(AttributeError, match="Did you mean") as exc:
+        _ = parse_locals["pdg_test"].mz
+    assert "mZ" in str(exc.value)
+
+
+def test_constant_namespace_pickle_and_deepcopy() -> None:
+    """D23.10: ConstantNamespace must round-trip like SimpleNamespace."""
+    import copy
+    import pickle
+
+    registry = OperasRegistry()
+    _register_const(registry, "mZ", 91.1876)
+    _register_const(registry, "hbarc", 197.3269804)
+    parse_locals, _ = build_sympy_dicts(
+        build_register_dicts(registry),
+        constants=build_constant_dicts(registry),
+        include_all=True,
+    )
+    ns = parse_locals["pdg_test"]
+    assert isinstance(ns, ConstantNamespace)
+
+    restored = pickle.loads(pickle.dumps(ns))
+    assert isinstance(restored, ConstantNamespace)
+    assert float(restored.mZ) == pytest.approx(91.1876)
+    assert float(restored.hbarc) == pytest.approx(197.3269804)
+
+    cloned = copy.deepcopy(ns)
+    assert isinstance(cloned, ConstantNamespace)
+    assert float(cloned.mZ) == pytest.approx(91.1876)
+
+
 def test_coexist_with_bare_symbol_same_name() -> None:
     registry = OperasRegistry()
     _register_const(registry, "mZ", 91.1876)
