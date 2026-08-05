@@ -647,6 +647,19 @@ def _is_user_loaded_function(info: dict[str, Any]) -> bool:
         return False
 
 
+def _is_constant_info(info: Mapping[str, Any] | dict[str, Any]) -> bool:
+    """True when the operator is a namespace constant (D23.12)."""
+    metadata = info.get("metadata") if isinstance(info.get("metadata"), dict) else {}
+    if str(metadata.get("category") or "").strip().lower() == "constant":
+        return True
+    if "value" in metadata and info.get("arity") == 0:
+        return True
+    flags = info.get("flags")
+    if isinstance(flags, (set, frozenset, list, tuple)):
+        return "constant" in {str(item) for item in flags}
+    return False
+
+
 def _print_info_human(info: dict[str, Any]) -> None:
     metadata = info.get("metadata", {})
     supports_async = bool(info.get("supports_async", info.get("is_async")))
@@ -660,8 +673,17 @@ def _print_info_human(info: dict[str, Any]) -> None:
     table.add_row("CATEGORY", str(category or info.get("namespace", "")))
     table.add_row("MODULE", str(info.get("module") or info.get("namespace", "")))
     table.add_row("DESCRIPTION", _render_summary_display(description))
-    table.add_row("SIGNATURE", str(info.get("signature", "")))
-    table.add_row("ASYNC", str(supports_async).lower())
+    # D23.12: constants are not callables — show VALUE/UNIT/SOURCE, not lambda sig.
+    if _is_constant_info(info) and isinstance(metadata, dict):
+        if "value" in metadata:
+            table.add_row("VALUE", str(metadata.get("value")))
+        if metadata.get("unit") is not None:
+            table.add_row("UNIT", str(metadata.get("unit")))
+        if metadata.get("source"):
+            table.add_row("SOURCE", str(metadata.get("source")))
+    else:
+        table.add_row("SIGNATURE", str(info.get("signature", "")))
+        table.add_row("ASYNC", str(supports_async).lower())
     console = _console()
     console.print(Panel(table, title="Operator metadata", title_align="left", border_style="#9b7dcc", box=box.ROUNDED))
     # Keep the old field labels discoverable for scripts and users accustomed

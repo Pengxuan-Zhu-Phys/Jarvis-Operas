@@ -40,6 +40,16 @@ class ConstantNamespace(SimpleNamespace):
         super().__init__(**kwargs)
         self._jo_namespace = _jo_namespace
 
+    def __reduce__(self):  # type: ignore[override]
+        # D23.10: SimpleNamespace default reduce cannot rebuild a class whose
+        # __init__ requires a positional namespace argument.
+        public = {
+            key: value
+            for key, value in self.__dict__.items()
+            if key != "_jo_namespace"
+        }
+        return (ConstantNamespace, (self._jo_namespace,), public)
+
     def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
             raise AttributeError(
@@ -47,7 +57,17 @@ class ConstantNamespace(SimpleNamespace):
             )
         known = sorted(key for key in self.__dict__ if not str(key).startswith("_"))
         full = f"{self._jo_namespace}.{name}"
-        suggestions = get_close_matches(name, known, n=3, cutoff=0.5)
+        # D23.11: case-only typos (pdg.mz vs mZ) lose under default difflib cutoff.
+        folded_index = {str(key).casefold(): str(key) for key in known}
+        if name.casefold() in folded_index:
+            suggestions = [folded_index[name.casefold()]]
+        else:
+            suggestions = get_close_matches(name, known, n=3, cutoff=0.5)
+            if not suggestions:
+                cf_hits = get_close_matches(
+                    name.casefold(), list(folded_index.keys()), n=3, cutoff=0.5
+                )
+                suggestions = [folded_index[hit] for hit in cf_hits]
         message = f"'{full}' is not registered in Jarvis-Operas."
         if suggestions:
             message += f" Did you mean {', '.join(suggestions)}?"
