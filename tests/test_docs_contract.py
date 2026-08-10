@@ -5,7 +5,7 @@ from pathlib import Path
 
 def test_maintaining_uses_current_module_layout() -> None:
     repo_root = Path(__file__).resolve().parent.parent
-    body = (repo_root / "MAINTAINING.md").read_text(encoding="utf-8")
+    body = (repo_root / "docs" / "MAINTAINING.md").read_text(encoding="utf-8")
 
     assert "jarvis_operas/core/spec.py" in body
     assert "jarvis_operas/core/registry.py" in body
