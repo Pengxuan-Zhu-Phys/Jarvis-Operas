@@ -20,6 +20,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+from rich.styled import Styled
 
 from .api import get_global_operas_registry
 from .core.registry import OperasRegistry
@@ -149,7 +150,7 @@ def _render_help_options(*, title: str, params: list[click.Parameter], ctx: clic
         )
         danger = any(word in (param.help or "").lower() for word in ("delete", "overwrite", "kill", "force"))
         if danger:
-            help_text = Text(str(help_text), style="red")
+            help_text = Styled(help_text, style="red")
         table.add_row(primary, alias, help_text)
     console.print(_help_panel(title, table))
 

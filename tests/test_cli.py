@@ -815,3 +815,16 @@ def test_cli_removed_mutation_commands_are_unrecognized(tmp_path) -> None:
         result = _run_cli(*cmd)
         assert result.returncode != 0
         assert "invalid choice" in result.stderr
+
+
+def test_cli_dangerous_help_preserves_rich_renderable() -> None:
+    for command in ("init", "remove", "uninstall"):
+        result = _run_cli(command, "-h")
+        # Only public commands in this version participate.
+        if result.returncode != 0 and "invalid choice" in result.stderr:
+            continue
+        assert result.returncode == 0, result.stderr
+        assert "<rich." not in result.stdout
+    result = _run_cli("init", "-h")
+    assert "--force" in result.stdout
+    assert "Force recompilation" in result.stdout
