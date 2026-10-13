@@ -15,12 +15,18 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_release_entrypoint_uses_the_canonical_name() -> None:
+    assert (ROOT / "jorel").is_file()
+    assert os.access(ROOT / "jorel", os.X_OK)
+    assert not (ROOT / "joerl").exists()
+
+
 @pytest.fixture
 def wrapper_repository(tmp_path: Path) -> tuple[Path, Path]:
     """Use the real wrapper with an inert delegate, without releasing anything."""
     repository = tmp_path / "release repository"
     (repository / "scripts").mkdir(parents=True)
-    shutil.copy2(ROOT / "joerl", repository / "joerl")
+    shutil.copy2(ROOT / "jorel", repository / "jorel")
     delegate = repository / "scripts" / "full-release.sh"
     delegate.write_text(
         '#!/usr/bin/env bash\n'
@@ -35,9 +41,8 @@ def wrapper_repository(tmp_path: Path) -> tuple[Path, Path]:
 
 
 @pytest.mark.parametrize("shell", ["bash", "zsh"])
-@pytest.mark.parametrize("function", ["jorel", "joerl"])
 def test_sourced_wrapper_resolves_repository_and_forwards_arguments(
-    wrapper_repository: tuple[Path, Path], shell: str, function: str
+    wrapper_repository: tuple[Path, Path], shell: str
 ) -> None:
     shell_path = shutil.which(shell)
     if shell_path is None:
@@ -47,8 +52,8 @@ def test_sourced_wrapper_resolves_repository_and_forwards_arguments(
     env = dict(os.environ, RELEASE_WRAPPER_LOG=str(log))
     # Passing paths as positional parameters avoids shell interpolation.
     completed = subprocess.run(
-        [shell_path, "-c", f'source "$1"; shift; {function} "$@"', "release-test",
-         str(repository / "joerl"), "1.5.1", "--output", "output directory", "--dry"],
+        [shell_path, "-c", 'source "$1"; shift; jorel "$@"', "release-test",
+         str(repository / "jorel"), "1.5.1", "--output", "output directory", "--dry"],
         cwd=caller,
         env=env,
         text=True,
@@ -67,7 +72,7 @@ def test_wrapper_can_be_executed_directly(
     repository, caller = wrapper_repository
     log = caller / "wrapper.log"
     completed = subprocess.run(
-        ["bash", str(repository / "joerl"), "--help"],
+        [str(repository / "jorel"), "--help"],
         cwd=caller,
         env=dict(os.environ, RELEASE_WRAPPER_LOG=str(log)),
         text=True,
@@ -224,7 +229,7 @@ def release_repository(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
                 for part in path.relative_to(ROOT).parts
             )
         ]
-    required = ["joerl", "scripts/full-release.sh", "scripts/check_release.py", "scripts/smoke_install.py"]
+    required = ["jorel", "scripts/full-release.sh", "scripts/check_release.py", "scripts/smoke_install.py"]
     for relative in sorted(set(filter(None, tracked)) | set(required)):
         source = ROOT / relative
         if not source.is_file():
@@ -276,7 +281,7 @@ def _run_release(
 
 
 @pytest.mark.parametrize("arguments", [
-    ("--help",), ("1.5",), ("--unknown",), ("--dry", "--upload"),
+    ("--help",), ("1.5",), ("--unknown",), ("--upload",), ("--dry", "--upload"),
     ("--output",), ("--wheelhouse",), ("--no-index",),
 ])
 def test_release_preflight_finishes_before_tooling_or_output_mutation(
@@ -287,15 +292,17 @@ def test_release_preflight_finishes_before_tooling_or_output_mutation(
     completed, records = _run_release(release_repository, *arguments)
     assert completed.returncode == (0 if arguments == ("--help",) else 2), completed.stdout + completed.stderr
     assert records == []
+    if arguments == ("--help",):
+        assert "--upload" not in completed.stdout
     assert (repository / "pyproject.toml").read_bytes() == original_project
     assert list(caller.iterdir()) == []
 
 
-def test_default_release_verifies_tracked_snapshot_without_upload(
+def test_dry_release_verifies_tracked_snapshot_without_upload(
     release_repository: tuple[Path, Path, Path, Path],
 ) -> None:
     _, caller, _, _ = release_repository
-    completed, records = _run_release(release_repository, "--output", "verified artifacts")
+    completed, records = _run_release(release_repository, "--dry", "--output", "verified artifacts")
     assert completed.returncode == 0, completed.stdout + completed.stderr
     stages = [record["stage"] for record in records]
     assert "upload" not in stages
@@ -325,7 +332,7 @@ def test_failed_verification_never_uploads_or_publishes_output(
 ) -> None:
     _, caller, _, _ = release_repository
     completed, records = _run_release(
-        release_repository, "--upload", "--output", "verified artifacts", failure=failure
+        release_repository, "--output", "verified artifacts", failure=failure
     )
     assert completed.returncode != 0, completed.stdout + completed.stderr
     assert failure in [record["stage"] for record in records]
@@ -333,11 +340,11 @@ def test_failed_verification_never_uploads_or_publishes_output(
     assert not (caller / "verified artifacts").exists()
 
 
-def test_upload_receives_only_the_verified_wheel_and_sdist(
+def test_default_release_uploads_only_the_verified_wheel_and_sdist(
     release_repository: tuple[Path, Path, Path, Path],
 ) -> None:
     _, caller, _, _ = release_repository
-    completed, records = _run_release(release_repository, "--upload", "--output", "verified artifacts")
+    completed, records = _run_release(release_repository, "--output", "verified artifacts")
     assert completed.returncode == 0, completed.stdout + completed.stderr
     upload = next(record for record in records if record["stage"] == "upload")
     assert upload is records[-1]
@@ -405,7 +412,7 @@ def test_requested_version_updates_source_and_handoff_after_changelog_preparatio
     changelog.write_text(
         changelog.read_text().replace("# Changelog\n", "# Changelog\n\n## 1.5.1 — 2026-10-13\n\nPrepared test release.\n", 1)
     )
-    completed, records = _run_release(release_repository, "1.5.1", "--output", "verified artifacts")
+    completed, records = _run_release(release_repository, "1.5.1", "--dry", "--output", "verified artifacts")
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert 'version = "1.5.1"' in (repository / "pyproject.toml").read_text()
     handoff = json.loads((repository / "docs" / "unit_contract_handoff.json").read_text())
@@ -419,7 +426,7 @@ def test_python_path_is_resolved_relative_to_the_caller(
 ) -> None:
     _, caller, python, _ = release_repository
     completed, records = _run_release(
-        release_repository, "--python", os.path.relpath(python, caller),
+        release_repository, "--dry", "--python", os.path.relpath(python, caller),
         "--output", "verified artifacts"
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
@@ -434,7 +441,7 @@ def test_spaced_wheelhouse_reaches_isolated_build_as_a_uri(
     wheelhouse = caller / "dependency wheelhouse"
     wheelhouse.mkdir()
     completed, records = _run_release(
-        release_repository, "--wheelhouse", "dependency wheelhouse", "--no-index",
+        release_repository, "--dry", "--wheelhouse", "dependency wheelhouse", "--no-index",
         "--output", "verified artifacts"
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
@@ -454,7 +461,7 @@ def test_deleted_tracked_runtime_file_fails_before_build_or_upload(
 ) -> None:
     repository, caller, _, _ = release_repository
     (repository / relative).unlink()
-    completed, records = _run_release(release_repository, "--upload", "--output", "verified artifacts")
+    completed, records = _run_release(release_repository, "--output", "verified artifacts")
     assert completed.returncode != 0, completed.stdout + completed.stderr
     assert not any(record["stage"] in {"build", "upload"} for record in records)
     assert not (caller / "verified artifacts").exists()

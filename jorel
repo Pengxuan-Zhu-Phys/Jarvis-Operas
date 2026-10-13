@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Source in Bash/Zsh or execute directly. Candidate preparation is the default.
+# Jarvis-Operas release: source in Bash/Zsh or execute directly to publish.
 _jorel_SRC="$0"
 if [[ -n "${BASH_VERSION:-}" ]]; then
   _jorel_SRC="${BASH_SOURCE[0]}"
@@ -8,7 +8,6 @@ elif [[ -n "${ZSH_VERSION:-}" ]]; then
 fi
 _jorel_DIR="$(cd "$(dirname "$_jorel_SRC")" && pwd)"
 jorel() { bash "$_jorel_DIR/scripts/full-release.sh" "$@"; }
-joerl() { jorel "$@"; }
 _jorel_sourced=0
 if [[ -n "${BASH_VERSION:-}" ]]; then
   [[ "${BASH_SOURCE[0]}" != "$0" ]] && _jorel_sourced=1

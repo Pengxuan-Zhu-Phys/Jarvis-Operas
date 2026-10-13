@@ -394,19 +394,27 @@ python scripts/generate_function_docs.py --namespaces math,stat
 python scripts/generate_function_docs.py --out docs/custom_functions
 ```
 
-## Release candidates
+## Releases
 
-Prepare a verified wheel and source distribution without uploading:
+Build, verify, and publish a release to PyPI:
 
 ```bash
-./joerl 1.5.0 --dry --output dist/1.5.0
+./jorel 1.5.0
 ```
 
-The helper verifies source/package consistency, runs the full test suite, and
-installs the complete wheel in a clean environment for dependency and unit/CLI
-smoke checks. Successful candidates include `release-verification.json` and
-`SHA256SUMS`. See [the release procedure](docs/RELEASING.md) for tooling, local
-wheelhouses, shell sourcing, and explicit publication.
+The helper checks source/package consistency, runs the full test suite, installs
+and verifies the complete wheel in a clean environment, then uploads those
+exact wheel/sdist files. Configure Twine credentials before running it.
+
+To prepare artifacts without publishing:
+
+```bash
+./jorel 1.5.0 --dry --output dist/1.5.0
+```
+
+Successful verification produces `release-verification.json` and `SHA256SUMS`.
+See [the release procedure](docs/RELEASING.md) for tooling, local wheelhouses,
+shell sourcing, and publication.
 
 ## Workspace clean
 

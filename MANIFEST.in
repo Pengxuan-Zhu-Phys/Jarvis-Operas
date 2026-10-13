@@ -1,6 +1,6 @@
 recursive-include jarvis_operas/manifests *.json
 recursive-include jarvis_operas/models *.pkl *.md *.txt
-include joerl
+include jorel
 include scripts/full-release.sh scripts/check_release.py scripts/smoke_install.py
 include scripts/generate_function_docs.py
 include docs/CHANGELOG.md docs/RELEASING.md docs/MAINTAINING.md docs/architecture.md

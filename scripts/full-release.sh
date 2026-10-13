@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and verify one complete Operas wheel/sdist. Publishing requires --upload.
+# Build, verify and publish one complete Operas wheel/sdist; --dry skips upload.
 set -euo pipefail
 
 release_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -7,34 +7,32 @@ python_bin="${JARVIS_RELEASE_PYTHON:-python3}"
 requested_version=""
 output=""
 wheelhouse=""
-upload=0
 dry=0
 no_isolation=0
 no_index=0
 
 usage() {
   cat <<'EOF'
-Usage: joerl [X.Y.Z] [--dry | --upload] [--output DIR] [--python PYTHON]
+Usage: jorel [X.Y.Z] [--dry] [--output DIR] [--python PYTHON]
              [--no-isolation] [--wheelhouse DIR [--no-index]]
 
 Default: build wheel/sdist, run tests, install all runtime dependencies in a
 clean venv, verify the installed CLI/unit API, and write a verification report.
---dry             Explicitly select the default preparation-only mode.
---upload          Publish the exact verified wheel and sdist to PyPI.
+Then publish the exact verified wheel and sdist to PyPI.
+--dry             Only build and verify; skip publication.
 --output DIR      Fresh artifact directory (default: repository/dist/VERSION).
 --python PYTHON   Python executable (default: JARVIS_RELEASE_PYTHON or python3).
 --no-isolation    Reuse installed build/test tools in a separate tooling venv.
 --wheelhouse DIR  Local wheels used by tooling, builds and complete installation.
 --no-index        Resolve only from --wheelhouse; requires a complete wheelhouse.
 
-Source this helper in Bash/Zsh to use jorel or joerl from any directory.
+Source this helper in Bash/Zsh to use jorel from any directory.
 No caller-environment reinstall, package deletion, Git commit, tag, or push.
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --upload) upload=1; shift ;;
     --dry) dry=1; shift ;;
     --no-isolation) no_isolation=1; shift ;;
     --no-index) no_index=1; shift ;;
@@ -55,7 +53,6 @@ while [[ $# -gt 0 ]]; do
       requested_version="$1"; shift ;;
   esac
 done
-[[ "$dry" -eq 0 || "$upload" -eq 0 ]] || { echo '--dry and --upload cannot be combined' >&2; exit 2; }
 [[ "$no_index" -eq 0 || -n "$wheelhouse" ]] || { echo '--no-index requires --wheelhouse' >&2; exit 2; }
 if [[ "$python_bin" == */* && "$python_bin" != /* ]]; then python_bin="$PWD/$python_bin"; fi
 command -v "$python_bin" >/dev/null || { echo "Python executable not found: $python_bin" >&2; exit 2; }
@@ -175,7 +172,7 @@ root, target = map(Path, sys.argv[1:])
 # Missing tracked native modules/resources must not silently vanish from a snapshot.
 expected_runtime_files(root)
 tracked = subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).decode().split('\0')
-required = ['joerl', 'scripts/full-release.sh', 'scripts/check_release.py', 'scripts/smoke_install.py']
+required = ['jorel', 'scripts/full-release.sh', 'scripts/check_release.py', 'scripts/smoke_install.py']
 source_hash = hashlib.sha256()
 for relative in sorted(set(filter(None, tracked)) | set(required)):
     source = root / relative
@@ -248,8 +245,8 @@ mkdir -p "$output"
 [[ -z "$(ls -A "$output")" ]] || { echo "Output was populated during verification: $output" >&2; exit 2; }
 cp "$work/artifacts/"* "$output/"
 printf '[jorel] Verified complete artifacts: %s\n' "$output"
-if [[ "$upload" -eq 1 ]]; then
+if [[ "$dry" -eq 0 ]]; then
   "$build_python" -m twine upload --non-interactive -r pypi "$output/$(basename "${wheels[0]}")" "$output/$(basename "${sdists[0]}")"
 else
-  printf '[jorel] Candidate preparation complete. Publish explicitly with --upload.\n'
+  printf '[jorel] Dry run complete. Verified candidate retained without publication.\n'
 fi
