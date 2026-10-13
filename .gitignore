@@ -230,4 +230,7 @@ docs/*
 !docs/CHANGELOG.md
 !docs/MAINTAINER_NAMESPACE_FUNCTION_PLAYBOOK_CN.md
 !docs/MAINTAINING.md
+!docs/unit_contract.md
+!docs/unit_contract_handoff.json
+!docs/INTERNAL_FUNCTION_UNIT_UPDATES.md
 agent_maintenance/

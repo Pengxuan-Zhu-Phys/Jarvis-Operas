@@ -11,6 +11,8 @@ Architecture and migration references:
 
 - `docs/architecture.md`
 - `docs/migration.md`
+- [Unit contract v1.0 and host integration](docs/unit_contract.md)
+- [Internal function unit updates](docs/INTERNAL_FUNCTION_UNIT_UPDATES.md)
 
 ## Install
 
@@ -72,6 +74,23 @@ CLI behavior:
 - Developer-only write commands (`update`, `delete-func`, `delete-namespace`, `interp add/remove`) require `JARVIS_OPERAS_DEV_WRITE=1`
 
 ## Core API
+
+Physical operators can declare a versioned `metadata.unit_contract`. Calls without
+source units retain canonical-unit defaults; `call_units` / `acall_units` return
+the original result, separately projected values and a per-call audit. Prepare
+reusable plans with `registry.prepare(...)` during Worker preload. For example:
+
+```python
+from jarvis_operas import get_global_operas_registry
+
+registry = get_global_operas_registry()
+result = registry.call_units("pdg.mZ", output_units={"": "MeV"})
+assert result.values[""] == 91187.6
+```
+
+Use `jopera call pdg.mZ --output-units '{"":"MeV"}' --json` from the CLI.
+The [unit guide](docs/unit_contract.md) includes TeV → GeV input and pb → fb
+output examples. HEP YAML unit fields require the downstream bridge described there.
 
 ```python
 from jarvis_operas import get_global_operas_registry, get_global_operas

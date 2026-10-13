@@ -25,6 +25,16 @@ HELPER_BENCHMARK_DECLARATIONS: tuple[OperaFunction, ...] = (
                 "y": "Second axis values.",
             },
             "return": "EggBox response array or scalar.",
+            "unit_contract": {
+                "version": "1.0",
+                "inputs": {
+                    "x": {"unit": "rad", "shape": "scalar_or_array", "nullable": False},
+                    "y": {"unit": "rad", "shape": "scalar_or_array", "nullable": False},
+                },
+                "outputs": {
+                    "": {"unit": "1", "shape": "scalar_or_array", "nullable": False},
+                },
+            },
             "backend_support": {
                 "numpy": "native",
                 "polars": "native_expr",
@@ -51,6 +61,16 @@ HELPER_BENCHMARK_DECLARATIONS: tuple[OperaFunction, ...] = (
                 "y": "Second axis values.",
             },
             "return": "Dictionary payload with key 'z'.",
+            "unit_contract": {
+                "version": "1.0",
+                "inputs": {
+                    "x": {"unit": "rad", "shape": "scalar_or_array", "nullable": False},
+                    "y": {"unit": "rad", "shape": "scalar_or_array", "nullable": False},
+                },
+                "outputs": {
+                    "/z": {"unit": "1", "shape": "scalar_or_array", "nullable": False},
+                },
+            },
             "backend_support": {
                 "numpy": "native",
                 "polars": "native_expr",

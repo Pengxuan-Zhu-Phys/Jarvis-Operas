@@ -9,6 +9,7 @@ import shutil
 import sys
 import textwrap
 from collections.abc import Mapping
+from dataclasses import asdict, is_dataclass
 from importlib.metadata import PackageNotFoundError, version as dist_version
 from pathlib import Path
 from typing import Any
@@ -301,6 +302,11 @@ def _advanced_card() -> str:
           --arg key=value     Append call kwargs (JSON-decoded when possible)
           --kwargs JSON       Provide call kwargs as JSON object
           --backend BACKEND   call/acall backend: numpy|polars (default: numpy)
+          --input-units JSON  Parameter -> asserted source unit
+          --source-units JSON Parameter -> trusted source unit record
+          --output-units JSON Output JSON Pointer -> requested saved unit
+          --strict-units      Require confirmed source units
+          --unit-audit        Return canonical result, projection, and unit audit
           --log-mode MODE     warning|info|debug
           --json              Machine-readable output for supported commands
           init --force        Rebuild all curve cache pickle artifacts
@@ -359,7 +365,7 @@ def _to_json_safe(value: Any) -> Any:
 
     if np is not None:
         if isinstance(value, np.ndarray):
-            return [_to_json_safe(item) for item in value.tolist()]
+            return _to_json_safe(value.tolist())
         if isinstance(value, np.generic):
             return _to_json_safe(value.item())
 
@@ -371,6 +377,8 @@ def _to_json_safe(value: Any) -> Any:
         return [_to_json_safe(item) for item in value]
     if isinstance(value, Path):
         return str(value)
+    if is_dataclass(value) and not isinstance(value, type):
+        return _to_json_safe(asdict(value))
     return value
 
 
@@ -687,6 +695,30 @@ def _print_info_human(info: dict[str, Any]) -> None:
         table.add_row("ASYNC", str(supports_async).lower())
     console = _console()
     console.print(Panel(table, title="Operator metadata", title_align="left", border_style="#9b7dcc", box=box.ROUNDED))
+    contract = metadata.get("unit_contract") if isinstance(metadata, dict) else None
+    if isinstance(contract, Mapping):
+        units = Table(show_header=True, box=None, expand=True, padding=(0, 1))
+        units.add_column("SCOPE", width=8)
+        units.add_column("PARAMETER / PATH", ratio=1, overflow="fold")
+        units.add_column("UNIT", width=12)
+        units.add_column("SHAPE", width=18)
+        units.add_column("NULLABLE", width=8)
+        for scope in ("inputs", "outputs"):
+            for path, spec in contract.get(scope, {}).items():
+                units.add_row(
+                    scope[:-1],
+                    str(path) if path else "\"\" (root)",
+                    str(spec["unit"]),
+                    str(spec.get("shape", "scalar_or_array")),
+                    str(spec.get("nullable", False)).lower(),
+                )
+        console.print(Panel(
+            units,
+            title=f"Unit contract {contract['version']}",
+            title_align="left",
+            border_style="#9b7dcc",
+            box=box.ROUNDED,
+        ))
     # Keep the old field labels discoverable for scripts and users accustomed
     # to the pre-card output while the primary presentation remains structured.
     if not sys.stdout.isatty():
@@ -814,12 +846,87 @@ def _cmd_call_common(args: argparse.Namespace, *, async_mode: bool) -> int:
     registry = _registry_with_user_sources(args.user_ops)
     kwargs = _merge_kwargs(args.kwargs, args.arg)
 
-    if async_mode:
+    unit_mode = args.unit_audit or args.strict_units or any(
+        value is not None for value in (args.input_units, args.source_units, args.output_units)
+    )
+    if unit_mode:
+        unit_options = {
+            "input_units": _parse_unit_map(args.input_units, "--input-units"),
+            "source_units": _parse_unit_map(args.source_units, "--source-units"),
+            "output_units": _parse_unit_map(args.output_units, "--output-units"),
+            "strict": args.strict_units,
+        }
+        if async_mode:
+            execution = asyncio.run(registry.acall_units(
+                args.full_name, backend=args.backend, **unit_options, **kwargs,
+            ))
+        else:
+            execution = registry.call_units(
+                args.full_name, backend=args.backend, **unit_options, **kwargs,
+            )
+        result = {
+            key: getattr(execution, key)
+            for key in ("canonical_result", "normalized_inputs", "values", "units", "audit")
+        }
+        if not args.json:
+            result = _compact_unit_result(result)
+    elif async_mode:
         result = asyncio.run(registry.acall(args.full_name, backend=args.backend, **kwargs))
     else:
         result = registry.call(args.full_name, backend=args.backend, **kwargs)
     _print_value(result, as_json=args.json)
     return 0
+
+
+def _compact_unit_result(result: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep default unit output useful without printing full physical records."""
+    canonical = result["canonical_result"]
+    canonical_summary: dict[str, Any] = {"type": type(canonical).__name__}
+    if isinstance(canonical, Mapping):
+        if "record_id" in canonical:
+            canonical_summary["record_id"] = canonical["record_id"]
+        canonical_summary["fields"] = list(canonical)[:12]
+    return {
+        "canonical_result": canonical_summary,
+        "normalized_inputs": _compact_unit_value(result["normalized_inputs"]),
+        "values": _compact_unit_value(result["values"]),
+        "units": result["units"],
+        "audit": result["audit"],
+    }
+
+
+def _compact_unit_value(value: Any) -> Any:
+    import numpy as np
+
+    if isinstance(value, np.ndarray):
+        if value.ndim == 0:
+            return value.item()
+        return {
+            "shape": list(value.shape), "size": int(value.size),
+            "preview": _to_json_safe(value.ravel()[:6]),
+        }
+    if isinstance(value, Mapping):
+        preview = {str(key): _compact_unit_value(item) for key, item in list(value.items())[:12]}
+        if len(value) > 12:
+            preview["..."] = f"{len(value) - 12} more fields"
+        return preview
+    if isinstance(value, (list, tuple)):
+        if len(value) > 6:
+            return {"size": len(value), "preview": [_compact_unit_value(item) for item in value[:6]]}
+        return [_compact_unit_value(item) for item in value]
+    return value
+
+
+def _parse_unit_map(raw: str | None, option: str) -> dict[str, str] | None:
+    if raw is None:
+        return None
+    value = json.loads(raw)
+    if not isinstance(value, dict) or any(
+        not isinstance(key, str) or not isinstance(unit, str)
+        for key, unit in value.items()
+    ):
+        raise ValueError(f"{option} must decode to a JSON object of names/paths to unit strings")
+    return value
 
 
 def _cmd_call(args: argparse.Namespace) -> int:
@@ -980,6 +1087,26 @@ def _add_call_args(parser: argparse.ArgumentParser) -> None:
         choices=("numpy", "polars"),
         default="numpy",
         help="Execution backend for this call (default: numpy).",
+    )
+    parser.add_argument(
+        "--input-units", default=None,
+        help="JSON object mapping parameters to asserted source units, e.g. '{\"mass_GeV\":\"TeV\"}'.",
+    )
+    parser.add_argument(
+        "--source-units", default=None,
+        help="JSON object mapping parameters to trusted source units. Explicit input units must agree.",
+    )
+    parser.add_argument(
+        "--output-units", default=None,
+        help="JSON object mapping output JSON Pointers to saved units, e.g. '{\"/value\":\"fb\"}' (root: '').",
+    )
+    parser.add_argument(
+        "--strict-units", action="store_true",
+        help="Require confirmed source units for unit-contracted numeric parameters.",
+    )
+    parser.add_argument(
+        "--unit-audit", action="store_true",
+        help="Output canonical result, normalized inputs, projected values/units, and per-call audit.",
     )
     _add_source_args(parser)
 

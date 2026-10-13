@@ -27,6 +27,16 @@ CMB_CORE_DECLARATIONS: tuple[OperaFunction, ...] = (
                 "apply_noise_to_model": "Whether noise is added to model_cl (default true).",
             },
             "return": "Dictionary with loglike and runtime info (n_ell is fixed to 111; used_bins is always false).",
+            "unit_contract": {
+                "version": "1.0",
+                "inputs": {
+                    "model_cl": {"unit": "uK^2", "shape": "array", "nullable": False},
+                    "noise_cl": {"unit": "uK^2", "shape": "array", "nullable": True},
+                },
+                "outputs": {
+                    "/loglike": {"unit": "1", "shape": "scalar", "nullable": False},
+                },
+            },
             "backend_support": {
                 "numpy": "native",
                 "polars": "unsupported",
@@ -45,7 +55,10 @@ CMB_CORE_DECLARATIONS: tuple[OperaFunction, ...] = (
                 "Source: https://github.com/htjb/cmb-likelihood (cmblike/cmb.py + "
                 "data/TT_power_spec.txt), adapted with JO internal Planck TT dataset "
                 "on fixed 111-point l_center grid. Constraints: model_cl/noise_cl "
-                "must match length 111; do not pass ell/l/data/data_cl/bins."
+                "must match length 111; do not pass ell/l/data/data_cl/bins. "
+                "Unit bindings apply to direct model_cl/noise_cl keyword inputs. "
+                "Legacy payload/observables mappings use canonical uK^2 values and do "
+                "not support nested unit bindings in contract version 1.0."
             ),
         },
     ),
@@ -69,6 +82,21 @@ CMB_CORE_DECLARATIONS: tuple[OperaFunction, ...] = (
                 "h": "Reduced Hubble parameter.",
             },
             "return": "Dictionary with model_cl only on internal Planck 111-point l_center grid.",
+            "unit_contract": {
+                "version": "1.0",
+                "inputs": {
+                    "omegabh2": {"unit": "1", "shape": "scalar", "nullable": False},
+                    "omegach2": {"unit": "1", "shape": "scalar", "nullable": False},
+                    "thetaMC": {"unit": "1", "shape": "scalar", "nullable": False},
+                    "tau": {"unit": "1", "shape": "scalar", "nullable": False},
+                    "ns": {"unit": "1", "shape": "scalar", "nullable": False},
+                    "As": {"unit": "1", "shape": "scalar", "nullable": False},
+                    "h": {"unit": "1", "shape": "scalar", "nullable": False},
+                },
+                "outputs": {
+                    "/model_cl": {"unit": "uK^2", "shape": [111], "nullable": False},
+                },
+            },
             "backend_support": {
                 "numpy": "native",
                 "polars": "unsupported",
@@ -86,7 +114,10 @@ CMB_CORE_DECLARATIONS: tuple[OperaFunction, ...] = (
                 "Source: https://github.com/htjb/cmb-likelihood "
                 "(cmblike/cmb.py:get_cosmopower_model), adapted with JO-bundled "
                 "model path, internal numpy forward pass, and Planck 111-point grid "
-                "projection. Compatibility: ell_min/ell_max are accepted but ignored."
+                "projection. Compatibility: ell_min/ell_max are accepted but ignored. "
+                "Unit bindings apply to direct numerical keyword inputs. Legacy "
+                "payload/observables mappings use canonical values and do not support "
+                "nested unit bindings in contract version 1.0."
             ),
         },
     ),

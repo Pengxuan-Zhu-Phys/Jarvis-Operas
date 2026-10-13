@@ -23,7 +23,24 @@
         "summary": "CDEX 2022 light-mediator DM-electron upper-limit curve.",
         "examples": [
           "jopera call dmddxe.CDEXLM2022 --kwargs '{\"x\":100.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -46,7 +63,24 @@
         "summary": "DarkSide-50 2022 light-mediator DM-electron upper-limit curve.",
         "examples": [
           "jopera call dmddxe.DarkSide50LM2022 --kwargs '{\"x\":20.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -70,7 +104,24 @@
         "summary": "CDMS-HVeV 2023 light-mediator DM-electron upper-limit curve.",
         "examples": [
           "jopera call dmddxe.CDMSHVeVLM2023 --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -95,7 +146,24 @@
         "summary": "SENSEI 2024 combined light-mediator envelope.",
         "examples": [
           "jopera call dmddxe.SENSEILM2024Combined --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -120,7 +188,24 @@
         "summary": "DAMIC-M 2025 combined light-mediator envelope.",
         "examples": [
           "jopera call dmddxe.DAMICMLM2025Combined --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -143,7 +228,24 @@
         "summary": "EDELWEISS 2020 light-mediator DM-electron upper-limit curve.",
         "examples": [
           "jopera call dmddxe.EDELWEISSLM2020 --kwargs '{\"x\":5.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -166,7 +268,24 @@
         "summary": "PandaX 2021 light-mediator DM-electron upper-limit curve.",
         "examples": [
           "jopera call dmddxe.PandaXLM2021 --kwargs '{\"x\":10.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -189,7 +308,24 @@
         "summary": "XENON10 2017 light-mediator DM-electron upper-limit curve.",
         "examples": [
           "jopera call dmddxe.XENON10LM2017 --kwargs '{\"x\":10.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -212,7 +348,24 @@
         "summary": "XENON1T solar-reflection 2022 light-mediator DM-electron upper-limit curve.",
         "examples": [
           "jopera call dmddxe.XENON1TSolarReflectionLM2022 --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -240,7 +393,24 @@
         "summary": "2024 best-limit envelope for the light-mediator DM-electron panel.",
         "examples": [
           "jopera call dmddxe.AllLimitsLM2024 --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -263,7 +433,24 @@
         "summary": "CDEX 2022 heavy-mediator DM-electron upper-limit curve.",
         "examples": [
           "jopera call dmddxe.CDEXHM2022 --kwargs '{\"x\":100.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -286,7 +473,24 @@
         "summary": "DarkSide-50 2022 heavy-mediator DM-electron upper-limit curve.",
         "examples": [
           "jopera call dmddxe.DarkSide50HM2022 --kwargs '{\"x\":20.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -310,7 +514,24 @@
         "summary": "CDMS-HVeV 2023 heavy-mediator DM-electron upper-limit curve.",
         "examples": [
           "jopera call dmddxe.CDMSHVeVHM2023 --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -335,7 +556,24 @@
         "summary": "SENSEI 2024 combined heavy-mediator envelope.",
         "examples": [
           "jopera call dmddxe.SENSEIHM2024Combined --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -360,7 +598,24 @@
         "summary": "DAMIC-M 2025 combined heavy-mediator envelope.",
         "examples": [
           "jopera call dmddxe.DAMICMHM2025Combined --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -383,7 +638,24 @@
         "summary": "EDELWEISS 2020 heavy-mediator DM-electron upper-limit curve.",
         "examples": [
           "jopera call dmddxe.EDELWEISSHM2020 --kwargs '{\"x\":5.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -406,7 +678,24 @@
         "summary": "PandaX 2021 heavy-mediator DM-electron upper-limit curve.",
         "examples": [
           "jopera call dmddxe.PandaXHM2021 --kwargs '{\"x\":10.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -429,7 +718,24 @@
         "summary": "XENON1T 2019 heavy-mediator DM-electron upper-limit curve.",
         "examples": [
           "jopera call dmddxe.XENON1THM2019 --kwargs '{\"x\":30.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -452,7 +758,24 @@
         "summary": "XENON1T solar-reflection 2022 heavy-mediator DM-electron upper-limit curve.",
         "examples": [
           "jopera call dmddxe.XENON1TSolarReflectionHM2022 --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -481,7 +804,24 @@
         "summary": "2024 best-limit envelope for the heavy-mediator DM-electron panel.",
         "examples": [
           "jopera call dmddxe.AllLimitsHM2024 --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "MeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     }
   ]

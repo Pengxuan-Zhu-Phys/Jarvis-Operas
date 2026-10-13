@@ -4,6 +4,7 @@ from concurrent.futures import Executor
 from typing import Any
 
 from .registry import OperasRegistry
+from ..units import UnitCallPlan, UnitCallResult
 
 
 class Operas:
@@ -51,6 +52,18 @@ class Operas:
         **kwargs: Any,
     ) -> Any:
         return await self.registry.acall(name, *args, backend=backend, **kwargs)
+
+    def prepare(self, name: str, **unit_options: Any) -> UnitCallPlan:
+        return self.registry.prepare(name, **unit_options)
+
+    def call_units(self, name: str, *args: Any, **kwargs: Any) -> UnitCallResult:
+        return self.registry.call_units(name, *args, **kwargs)
+
+    async def acall_units(self, name: str, *args: Any, **kwargs: Any) -> UnitCallResult:
+        return await self.registry.acall_units(name, *args, **kwargs)
+
+    async def acall_many_units(self, name: str, calls, **kwargs: Any) -> list[Any]:
+        return await self.registry.acall_many_units(name, calls, **kwargs)
 
 
 def get_global_operas_registry() -> OperasRegistry:

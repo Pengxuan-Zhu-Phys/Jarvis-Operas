@@ -33,6 +33,18 @@ from .errors import (
 )
 from .loading import discover_entrypoints, load_user_ops
 from .logging import configure_cli_logger, get_log_mode, get_logger, set_log_mode
+from .units import (
+    UNIT_CONTRACT_VERSION,
+    UnitCallPlan,
+    UnitCallResult,
+    UnitContractError,
+    UnitProjection,
+    conversion_factor,
+    convert_value,
+    prepare_unit_call,
+    unit_catalog,
+    validate_unit_contract,
+)
 from .persistence import (
     apply_persisted_overrides,
     delete_persisted_function,
@@ -69,6 +81,16 @@ _LAZY_INTEGRATION_EXPORTS = frozenset(
 )
 
 __all__ = [
+    "UNIT_CONTRACT_VERSION",
+    "UnitCallPlan",
+    "UnitCallResult",
+    "UnitContractError",
+    "UnitProjection",
+    "conversion_factor",
+    "convert_value",
+    "prepare_unit_call",
+    "unit_catalog",
+    "validate_unit_contract",
     "OperaFunction",
     "OperasRegistry",
     "Operas",

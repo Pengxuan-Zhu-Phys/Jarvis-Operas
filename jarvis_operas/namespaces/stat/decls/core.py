@@ -20,6 +20,18 @@ STAT_CORE_DECLARATIONS: tuple[OperaFunction, ...] = (
                 "cov": "Covariance matrix.",
             },
             "return": "Chi-square scalar (single sample) or vector (multiple samples).",
+            "unit_contract": {
+                "version": "1.0",
+                "inputs": {},
+                "outputs": {
+                    "": {"unit": "1", "shape": "scalar_or_array", "nullable": False},
+                },
+            },
+            "note": (
+                "The chi-square result is dimensionless. Residual and covariance units depend "
+                "on the observables; covariance must carry the products of their units. "
+                "Version 1.0 has no fixed input contract or covariance unit inference."
+            ),
             "backend_support": {
                 "numpy": "native",
                 "polars": "native_expr",

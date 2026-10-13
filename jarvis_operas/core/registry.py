@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import inspect
 import os
@@ -13,6 +14,7 @@ from weakref import WeakKeyDictionary
 
 from ..errors import OperatorCallError, OperatorConflict, OperatorNotFound
 from ..logging import get_logger
+from ..units import UnitCallPlan, UnitCallResult, UnitContractError, prepare_unit_call
 from ..name_utils import (
     normalize_full_name as normalize_common_full_name,
     normalize_namespace as normalize_common_namespace,
@@ -241,6 +243,8 @@ class OperasRegistry:
         docstring = inspect.getdoc(declaration.numpy_impl or declaration.polars_expr_impl) or ""
         doc_summary = docstring.splitlines()[0] if docstring else ""
         metadata = dict(declaration.metadata)
+        if metadata.get("unit_contract") is not None:
+            metadata["unit_contract"] = copy.deepcopy(metadata["unit_contract"])
         metadata_summary = metadata.get("summary")
         metadata_note = metadata.get("note")
         if isinstance(metadata_summary, str) and metadata_summary.strip():
@@ -274,6 +278,7 @@ class OperasRegistry:
             "supports_polars_native": declaration.supports_polars_native,
             "supports_polars_fallback": declaration.supports_polars_fallback,
             "metadata": metadata,
+            "unit_contract": metadata.get("unit_contract"),
             "signature": self._build_signature(declaration),
             "docstring": summary,
             "is_async": declaration.is_numpy_async(),
@@ -295,8 +300,10 @@ class OperasRegistry:
         declaration = self.get(full_name_or_id)
 
         try:
+            if backend == "numpy" and declaration.metadata.get("unit_contract") is not None:
+                args, kwargs, _ = prepare_unit_call(declaration).normalize_inputs(args, kwargs)
             result = declaration.dispatch(*args, backend=backend, **kwargs)
-        except OperatorCallError:
+        except (UnitContractError, OperatorCallError):
             raise
         except Exception as exc:
             raise OperatorCallError(
@@ -343,7 +350,11 @@ class OperasRegistry:
         async with semaphore:
             if declaration.is_numpy_async():
                 try:
+                    if declaration.metadata.get("unit_contract") is not None:
+                        args, kwargs, _ = prepare_unit_call(declaration).normalize_inputs(args, kwargs)
                     return await declaration.dispatch(*args, backend=backend, **kwargs)
+                except UnitContractError:
+                    raise
                 except OperatorCallError:
                     raise
                 except Exception as exc:
@@ -374,6 +385,121 @@ class OperasRegistry:
                     **kwargs,
                 ),
             )
+
+    def prepare(
+        self,
+        full_name_or_id: str,
+        *,
+        input_units: Mapping[str, str] | None = None,
+        source_units: Mapping[str, str] | None = None,
+        output_units: Mapping[str, str] | None = None,
+        output_bindings: Mapping[str, str] | None = None,
+        strict: bool = False,
+    ) -> UnitCallPlan:
+        """Prepare a reusable unit plan for a Worker preload or Python call."""
+
+        return prepare_unit_call(
+            self.get(full_name_or_id),
+            input_units=input_units,
+            source_units=source_units,
+            output_units=output_units,
+            output_bindings=output_bindings,
+            strict=strict,
+        )
+
+    def call_units(
+        self,
+        full_name_or_id: str,
+        *args: Any,
+        input_units: Mapping[str, str] | None = None,
+        source_units: Mapping[str, str] | None = None,
+        output_units: Mapping[str, str] | None = None,
+        output_bindings: Mapping[str, str] | None = None,
+        strict: bool = False,
+        backend: str = "numpy",
+        logger: Any | None = None,
+        **kwargs: Any,
+    ) -> UnitCallResult:
+        """Normalize, execute and project with an independent per-call audit."""
+
+        if backend != "numpy":
+            raise UnitContractError("unsupported_backend", "Unit execution supports the numpy backend only.")
+        plan = self.prepare(
+            full_name_or_id,
+            input_units=input_units,
+            source_units=source_units,
+            output_units=output_units,
+            output_bindings=output_bindings,
+            strict=strict,
+        )
+        result = plan.run(*args, **kwargs)
+        get_logger(logger or self._logger, mode=self._log_mode,
+                   operator=plan.declaration.full_name, action="call_units").debug("dispatched unit call")
+        return result
+
+    async def acall_units(
+        self,
+        full_name_or_id: str,
+        *args: Any,
+        input_units: Mapping[str, str] | None = None,
+        source_units: Mapping[str, str] | None = None,
+        output_units: Mapping[str, str] | None = None,
+        output_bindings: Mapping[str, str] | None = None,
+        strict: bool = False,
+        backend: str = "numpy",
+        logger: Any | None = None,
+        **kwargs: Any,
+    ) -> UnitCallResult:
+        """Async equivalent of call_units, using the registry concurrency gate."""
+
+        if backend != "numpy":
+            raise UnitContractError("unsupported_backend", "Unit execution supports the numpy backend only.")
+        plan = self.prepare(
+            full_name_or_id,
+            input_units=input_units,
+            source_units=source_units,
+            output_units=output_units,
+            output_bindings=output_bindings,
+            strict=strict,
+        )
+        semaphore = self._get_numpy_semaphore_for_running_loop()
+        async with semaphore:
+            if plan.declaration.is_numpy_async() or self._executor is None:
+                result = await plan.arun(*args, **kwargs)
+            else:
+                result = await asyncio.get_running_loop().run_in_executor(
+                    self._executor, partial(plan.run, *args, **kwargs)
+                )
+        get_logger(logger or self._logger, mode=self._log_mode,
+                   operator=plan.declaration.full_name, action="acall_units").debug("dispatched async unit call")
+        return result
+
+    async def acall_many_units(
+        self,
+        full_name_or_id: str,
+        calls: Sequence[Mapping[str, Any]],
+        *,
+        concurrency: int | None = None,
+        return_exceptions: bool = False,
+        **unit_options: Any,
+    ) -> list[UnitCallResult | BaseException]:
+        """Execute independent kwargs payloads with shared fixed unit bindings."""
+
+        if concurrency is not None and concurrency < 1:
+            raise ValueError("concurrency must be >= 1 or None")
+        resolved = self.resolve_name(full_name_or_id)
+        semaphore = asyncio.Semaphore(concurrency or self._numpy_concurrency)
+
+        async def run_one(index: int, payload: Mapping[str, Any]) -> UnitCallResult:
+            if not isinstance(payload, Mapping):
+                raise TypeError(f"calls[{index}] must be a mapping of kwargs")
+            async with semaphore:
+                return await self.acall_units(resolved, **unit_options, **dict(payload))
+
+        return list(await asyncio.gather(
+            *(run_one(index, item) for index, item in enumerate(calls)),
+            return_exceptions=return_exceptions,
+        ))
 
     async def acall_many(
         self,

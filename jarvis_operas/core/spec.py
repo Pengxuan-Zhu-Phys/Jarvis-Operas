@@ -6,6 +6,7 @@ from types import MappingProxyType
 from typing import Any, Callable, Mapping
 
 from ..errors import OperatorCallError
+from ..units import validate_unit_contract
 from ..name_utils import (
     normalize_namespace,
     normalize_short_name,
@@ -58,6 +59,11 @@ class OperaFunction:
         object.__setattr__(self, "flags", normalized_flags)
 
         metadata = dict(self.metadata or {})
+        if "unit_contract" in metadata:
+            metadata["unit_contract"] = validate_unit_contract(
+                metadata["unit_contract"], self.numpy_impl or self.polars_expr_impl,
+                documented_parameters=metadata.get("params") if isinstance(metadata.get("params"), Mapping) else None,
+            )
         supports_polars_native = self.polars_expr_impl is not None
         supports_polars_fallback = self.numpy_impl is not None and self.return_dtype is not None
         supports = {

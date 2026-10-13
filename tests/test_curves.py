@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from jarvis_operas import OperaFunction, OperasRegistry, func_locals, numeric_funcs
+from jarvis_operas import OperaFunction, OperasRegistry, UnitContractError, func_locals, numeric_funcs
 from jarvis_operas.api import get_global_operas_registry
 from jarvis_operas.curves import (
     add_interpolation_namespace,
@@ -846,7 +846,7 @@ def test_registered_curve_reuses_prepared_interpolator(tmp_path) -> None:
     assert registry.get("interp.line").numpy_impl is curve_fn
 
 
-def test_dmddxn_curve_returns_nan_on_out_of_bounds_and_nan_input() -> None:
+def test_dmddxn_curve_retains_out_of_bounds_nan_and_rejects_nonfinite_unit_input() -> None:
     base = resources.files("jarvis_operas").joinpath("manifests")
     manifest_path = base.joinpath("interpolations.manifest.json")
 
@@ -872,11 +872,14 @@ def test_dmddxn_curve_returns_nan_on_out_of_bounds_and_nan_input() -> None:
         scalar = registry.call("dmddxn.LZSI2024", x=1.0)
         assert np.isnan(float(scalar))
 
-        mixed = registry.call("dmddxn.LZSI2024", x=np.array([1.0, np.nan, 1.0e3]))
-        assert mixed.shape == (3,)
+        with pytest.raises(UnitContractError) as error:
+            registry.call("dmddxn.LZSI2024", x=np.array([1.0, np.nan, 1.0e3]))
+        assert error.value.code == "non_finite"
+
+        mixed = registry.call("dmddxn.LZSI2024", x=np.array([1.0, 1.0e3]))
+        assert mixed.shape == (2,)
         assert np.isnan(mixed[0])
-        assert np.isnan(mixed[1])
-        assert np.isfinite(mixed[2])
+        assert np.isfinite(mixed[1])
     finally:
         if temp_index.exists():
             temp_index.unlink()
@@ -887,7 +890,7 @@ def test_dmddxn_curve_returns_nan_on_out_of_bounds_and_nan_input() -> None:
             temp_curve_dir.rmdir()
 
 
-def test_dmddxe_curve_returns_nan_on_out_of_bounds_and_nan_input() -> None:
+def test_dmddxe_curve_retains_out_of_bounds_nan_and_rejects_nonfinite_unit_input() -> None:
     base = resources.files("jarvis_operas").joinpath("manifests")
     manifest_path = base.joinpath("interpolations.manifest.json")
 
@@ -929,11 +932,14 @@ def test_dmddxe_curve_returns_nan_on_out_of_bounds_and_nan_input() -> None:
         scalar = registry.call("dmddxe.CDEXLM2022", x=1.0)
         assert np.isnan(float(scalar))
 
-        mixed = registry.call("dmddxe.CDEXLM2022", x=np.array([1.0, np.nan, 1.0e3]))
-        assert mixed.shape == (3,)
+        with pytest.raises(UnitContractError) as error:
+            registry.call("dmddxe.CDEXLM2022", x=np.array([1.0, np.nan, 1.0e3]))
+        assert error.value.code == "non_finite"
+
+        mixed = registry.call("dmddxe.CDEXLM2022", x=np.array([1.0, 1.0e3]))
+        assert mixed.shape == (2,)
         assert np.isnan(mixed[0])
-        assert np.isnan(mixed[1])
-        assert np.isfinite(mixed[2])
+        assert np.isfinite(mixed[1])
     finally:
         if temp_index.exists():
             temp_index.unlink()

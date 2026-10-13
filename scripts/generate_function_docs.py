@@ -92,6 +92,7 @@ def _to_record(declaration: OperaFunction) -> dict[str, Any]:
         "polars_expr_impl": _callable_path(declaration.polars_expr_impl),
         "summary": _doc_summary(declaration),
         "backend_support": backend_support if isinstance(backend_support, dict) else {},
+        "unit_contract": metadata.get("unit_contract"),
         "metadata": metadata,
     }
 
@@ -133,12 +134,41 @@ def _function_page_content(record: dict[str, Any]) -> str:
         f"- `supports_polars_fallback`: `{record['supports_polars_fallback']}`\n\n"
         f"### Backend Support Metadata\n\n"
         f"```json\n{backend_support_json}\n```\n\n"
+        f"## Unit Contract\n\n"
+        f"{_unit_contract_content(record.get('unit_contract'))}\n"
         f"## Implementation Targets\n\n"
         f"- `numpy_impl`: `{record['numpy_impl'] or 'N/A'}`\n"
         f"- `polars_expr_impl`: `{record['polars_expr_impl'] or 'N/A'}`\n\n"
         f"## Metadata (from `OperaFunction.metadata`)\n\n"
         f"```json\n{metadata_json}\n```\n"
     )
+
+
+def _unit_contract_content(contract: Any) -> str:
+    """Render the declaration's sole authoritative unit metadata."""
+    if not isinstance(contract, dict):
+        return "No unit contract declared. Explicit unit handling requires a contract.\n"
+    lines = [
+        f"Contract version: `{contract['version']}`.",
+        "",
+        "| Scope | Parameter / output JSON Pointer | Unit | Shape | Nullable |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for scope in ("inputs", "outputs"):
+        for path, spec in contract.get(scope, {}).items():
+            display_path = path if path else '\"\" (root result)'
+            lines.append(
+                f"| {scope[:-1]} | `{display_path}` | `{spec['unit']}` | "
+                f"`{spec.get('shape', 'scalar_or_array')}` | "
+                f"`{str(spec.get('nullable', False)).lower()}` |"
+            )
+    lines.extend([
+        "",
+        "Missing input source units use the canonical unit in compatibility mode "
+        "and are audited as `assumed_canonical`; strict mode requires confirmed units.",
+        "",
+    ])
+    return "\n".join(lines)
 
 
 def _namespace_index_content(namespace: str, records: list[dict[str, Any]]) -> str:

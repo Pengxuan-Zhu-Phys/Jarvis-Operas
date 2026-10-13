@@ -23,7 +23,24 @@
         "summary": "LZ 2024 SI 90% C.L. upper limit curve (arXiv:2410.17036).",
         "examples": [
           "jopera call dmddxn.LZSI2024 --kwargs '{\"x\":30.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -48,7 +65,24 @@
         "summary": "XENONnT 2025 combined SI upper-limit envelope.",
         "examples": [
           "jopera call dmddxn.XENONnTSI2025 --kwargs '{\"x\":30.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -71,7 +105,24 @@
         "summary": "XENON1T Migdal-effect SI limit curve.",
         "examples": [
           "jopera call dmddxn.XENON1TMigdalSI2019 --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -96,7 +147,24 @@
         "summary": "PandaX combined SI upper-limit curve.",
         "examples": [
           "jopera call dmddxn.PandaXSI2024 --kwargs '{\"x\":30.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -119,7 +187,24 @@
         "summary": "CRESST SI upper-limit curve.",
         "examples": [
           "jopera call dmddxn.CRESSTSI2019 --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -142,7 +227,24 @@
         "summary": "DarkSide-50 2022 SI upper-limit curve.",
         "examples": [
           "jopera call dmddxn.DarkSide50SI2022 --kwargs '{\"x\":5.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -165,7 +267,24 @@
         "summary": "EDELWEISS SI upper-limit curve.",
         "examples": [
           "jopera call dmddxn.EDELWEISSSI2016 --kwargs '{\"x\":10.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -188,7 +307,24 @@
         "summary": "DEAP-3600 SI upper-limit curve.",
         "examples": [
           "jopera call dmddxn.DEAP3600SI2019 --kwargs '{\"x\":100.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -212,7 +348,24 @@
         "summary": "PICO-60 SI upper-limit curve.",
         "examples": [
           "jopera call dmddxn.PICO60SI2019 --kwargs '{\"x\":10.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -235,7 +388,24 @@
         "summary": "COSINE-100 SI upper-limit curve.",
         "examples": [
           "jopera call dmddxn.COSINE100SI2018 --kwargs '{\"x\":30.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -258,7 +428,24 @@
         "summary": "NEWS-G SI upper-limit curve.",
         "examples": [
           "jopera call dmddxn.NEWSGSI2017 --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -281,7 +468,24 @@
         "summary": "LZ 2024 SDp 90% C.L. upper-limit curve (arXiv:2410.17036).",
         "examples": [
           "jopera call dmddxn.LZSDp2024 --kwargs '{\"x\":30.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -304,7 +508,24 @@
         "summary": "PICASSO SDp upper-limit curve (arXiv:1202.1240).",
         "examples": [
           "jopera call dmddxn.PICASSOSDp2012 --kwargs '{\"x\":10.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -328,7 +549,24 @@
         "summary": "PICO-60 SDp upper-limit curve.",
         "examples": [
           "jopera call dmddxn.PICO60SDp2019 --kwargs '{\"x\":10.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -351,7 +589,24 @@
         "summary": "CRESST-III SDp upper-limit curve (arXiv:2207.07640).",
         "examples": [
           "jopera call dmddxn.CRESSTSDp2022 --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -374,7 +629,24 @@
         "summary": "XENONnT 2025 SDp upper-limit curve (arXiv:2502.18005).",
         "examples": [
           "jopera call dmddxn.XENONnTSDp2025 --kwargs '{\"x\":30.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -397,7 +669,24 @@
         "summary": "PandaX SDp upper-limit curve (arXiv:2408.00664).",
         "examples": [
           "jopera call dmddxn.PandaXSDp2024 --kwargs '{\"x\":30.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -420,7 +709,24 @@
         "summary": "COUPP SDp upper-limit curve (arXiv:1204.3094).",
         "examples": [
           "jopera call dmddxn.COUPPSDp2012 --kwargs '{\"x\":800.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -443,7 +749,24 @@
         "summary": "NEWS-G SDp upper-limit curve (arXiv:2407.12769).",
         "examples": [
           "jopera call dmddxn.NEWSGSDp2024 --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -467,7 +790,24 @@
         "summary": "XENONnT 2025 combined SDp upper-limit envelope.",
         "examples": [
           "jopera call dmddxn.XENONnTSDp2025Combined --kwargs '{\"x\":30.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -490,7 +830,24 @@
         "summary": "LZ 2024 SDn 90% C.L. upper-limit curve (arXiv:2410.17036).",
         "examples": [
           "jopera call dmddxn.LZSDn2024 --kwargs '{\"x\":30.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -515,7 +872,24 @@
         "summary": "XENONnT 2025 combined SDn upper-limit envelope.",
         "examples": [
           "jopera call dmddxn.XENONnTSDn2025 --kwargs '{\"x\":30.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -538,7 +912,24 @@
         "summary": "PandaX SDn upper-limit curve (arXiv:2408.00664).",
         "examples": [
           "jopera call dmddxn.PandaXSDn2024 --kwargs '{\"x\":30.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -561,7 +952,24 @@
         "summary": "CDMS II SDn upper-limit curve (Science 327:1619-1621, 2010).",
         "examples": [
           "jopera call dmddxn.CDMSSDn2010 --kwargs '{\"x\":10.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -584,7 +992,24 @@
         "summary": "CRESST-III SDn upper-limit curve (arXiv:2207.07640).",
         "examples": [
           "jopera call dmddxn.CRESSTSDn2022 --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -607,7 +1032,24 @@
         "summary": "CDMSlite SDn upper-limit curve (Phys. Rev. D 99, 062001 (2019)).",
         "examples": [
           "jopera call dmddxn.CDMSliteSDn2019 --kwargs '{\"x\":5.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     },
     {
@@ -630,7 +1072,24 @@
         "summary": "XENON1T Migdal-effect SDn limit curve.",
         "examples": [
           "jopera call dmddxn.XENON1TMigdalSDn2019 --kwargs '{\"x\":1.0}'"
-        ]
+        ],
+        "unit_contract": {
+          "version": "1.0",
+          "inputs": {
+            "x": {
+              "unit": "GeV",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          },
+          "outputs": {
+            "": {
+              "unit": "cm^2",
+              "shape": "scalar_or_array",
+              "nullable": false
+            }
+          }
+        }
       }
     }
   ]

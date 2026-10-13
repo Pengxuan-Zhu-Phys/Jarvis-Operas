@@ -20,6 +20,11 @@ MATH_BASIC_DECLARATIONS: tuple[OperaFunction, ...] = (
                 "b": "Right operand (scalar/array-like).",
             },
             "return": "Sum of a and b with broadcast semantics from backend.",
+            "note": (
+                "Operands have no fixed physical unit. This generic operation keeps its "
+                "Python/backend addition semantics; explicit unit conversion requires a "
+                "separate function with a declared unit contract."
+            ),
             "backend_support": {
                 "numpy": "native",
                 "polars": "native_expr",
@@ -45,6 +50,11 @@ MATH_BASIC_DECLARATIONS: tuple[OperaFunction, ...] = (
                 "x": "Input value (scalar/array-like/expression).",
             },
             "return": "The same value as x.",
+            "note": (
+                "Identity accepts arbitrary objects and has no fixed physical unit. "
+                "Explicit unit conversion requires a separate function with a declared "
+                "unit contract."
+            ),
             "backend_support": {
                 "numpy": "native",
                 "polars": "native_expr",
