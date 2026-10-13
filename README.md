@@ -7,12 +7,13 @@ Jarvis-Operas is a standalone operator layer for registering, loading, and calli
 - Native async entrypoint for Jarvis-HEP style execution (`await registry.acall(...)`)
 - Stable `"<namespace>.<name>"` naming for references from Jarvis-HEP/Jarvis-PLOT YAML
 
-Architecture and migration references:
+Public documentation:
 
-- `docs/architecture.md`
-- `docs/migration.md`
-- [Unit contract v1.0 and host integration](docs/unit_contract.md)
-- [Internal function unit updates](docs/INTERNAL_FUNCTION_UNIT_UPDATES.md)
+- [Changelog](CHANGELOG.md)
+- [Migration guide](user-guide/migration.md)
+- [Unit contract v1.0](user-guide/unit_contract.md)
+- [Built-in function units](user-guide/builtin_units.md)
+- [Unit contract JSON Schema](user-guide/unit_contract_schema.json)
 
 ## Install
 
@@ -39,6 +40,8 @@ jopera info stat.chi2_cov --json
 jopera call math.add --kwargs '{"a": 1, "b": 2}'
 jopera acall stat.chi2_cov --arg residual=[1.0,-0.5] --arg cov=[[2.0,0.1],[0.1,1.0]]
 jopera call helper.eggbox --kwargs '{"x":0.5,"y":0.0}'
+jopera call helper.eggbox --arg x=90 --arg y=0 --input-units '{"x":"deg","y":"rad"}' --unit-audit --json
+jopera call pdg.mZ --output-units '{"":"MeV"}' --json
 jopera list --namespace math --log-mode info
 jopera call math.add --kwargs '{"a": 1, "b": 2}' --log-mode debug
 jopera init
@@ -62,6 +65,7 @@ CLI behavior:
 - `jopera list` prints grouped human-readable output by default (`id + name`)
 - `jopera list --json` prints machine-readable JSON objects with `id/name/namespace`
 - `jopera info <name_or_id>` prints metadata (including a unique id) and a suggested next command
+- `call` / `acall` accept `--input-units`, `--source-units`, `--output-units`, `--strict-units`, and `--unit-audit`; unit options return the canonical result, projected values, units, normalized inputs, and audit
 - `jopera load <path>` persists a JO-managed source snapshot for future processes
 - Re-running `jopera load <path>` replaces existing user operators with the same `<namespace>.<name>`
 - Removing a function from a user source file does not auto-delete its prior registration
@@ -89,8 +93,11 @@ assert result.values[""] == 91187.6
 ```
 
 Use `jopera call pdg.mZ --output-units '{"":"MeV"}' --json` from the CLI.
-The [unit guide](docs/unit_contract.md) includes TeV → GeV input and pb → fb
-output examples. HEP YAML unit fields require the downstream bridge described there.
+The [unit guide](user-guide/unit_contract.md) includes the metadata schema,
+strict source validation, TeV → GeV input, and pb → fb output examples. The
+[JSON Schema](user-guide/unit_contract_schema.json) describes declaration
+structure; registered unit symbols and callable parameters are validated by JO.
+HEP YAML unit fields and its executor bridge remain downstream work.
 
 ```python
 from jarvis_operas import get_global_operas_registry, get_global_operas
@@ -231,13 +238,22 @@ __JARVIS_OPERAS__ = {
 
 ## Integration Contract (Jarvis-HEP / Jarvis-PLOT)
 
-Downstream modules should depend on JO public API only:
+Import integration entry points from `jarvis_operas`: `OperasRegistry`, `Operas`,
+`get_global_operas_registry`, `get_global_operas`, `oper`, `load_user_ops`, and
+`persist_user_ops`. Downstream modules should use the public registry methods:
 
 - registry provider: `get_global_operas_registry()`
 - runtime calls: `call/acall`
 - lookup/introspection: `resolve_name/get/list/info`
+- unit execution: `prepare/call_units/acall_units/acall_many_units`
 
-Avoid importing JO private modules or private symbols.
+Prepared plans expose `run/arun`, `run_inputs/arun_inputs`, and `project`.
+Prepare registrations and fixed unit plans during host initialization, then
+reuse them during execution. Direct implementation calls bypass unit validation;
+downstream integrations must use these public entry points. JO provides
+declarations, registration, and dispatch; hosts own sample objects, YAML parsing,
+and observable storage. See the [migration guide](user-guide/migration.md) for
+supported import paths and reload behavior.
 
 ## Function Docs Generation
 
@@ -247,7 +263,7 @@ Function docs are generated from `OperaFunction.metadata`:
 python scripts/generate_function_docs.py --out docs/functions
 ```
 
-Generated artifacts:
+Generated artifacts are local outputs:
 
 - `docs/functions/functions.json`
 - `docs/functions/<namespace>/<function>.md`
@@ -402,9 +418,12 @@ Build, verify, and publish a release to PyPI:
 ./jorel 1.5.0
 ```
 
-The helper checks source/package consistency, runs the full test suite, installs
-and verifies the complete wheel in a clean environment, then uploads those
-exact wheel/sdist files. Configure Twine credentials before running it.
+The helper checks source/package versions, public documentation, and bundled
+resources; builds the wheel/sdist; runs release gates and the full test suite;
+and installs the complete wheel with its runtime dependencies in a clean
+environment. It checks the installed CLI and unit API before publishing those
+exact artifacts. A failed check stops publication. Configure Twine credentials
+before running it.
 
 To prepare artifacts without publishing:
 
@@ -412,9 +431,12 @@ To prepare artifacts without publishing:
 ./jorel 1.5.0 --dry --output dist/1.5.0
 ```
 
-Successful verification produces `release-verification.json` and `SHA256SUMS`.
-See [the release procedure](docs/RELEASING.md) for tooling, local wheelhouses,
-shell sourcing, and publication.
+`--dry` runs the same build and verification gates and skips publication. The
+output defaults to `dist/<version>`; `--output` selects another fresh empty
+directory. Successful verification writes the wheel/sdist,
+`release-verification.json`, and `SHA256SUMS` there. Run `./jorel --help` for
+Python selection, wheelhouse, and offline options. Release changes are recorded
+in [CHANGELOG.md](CHANGELOG.md).
 
 ## Workspace clean
 

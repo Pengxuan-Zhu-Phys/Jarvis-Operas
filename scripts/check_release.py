@@ -53,8 +53,25 @@ def _project_fields(text: str) -> dict[str, str]:
         return {name: project[name] for name in ("name", "version")}
 
 
+def check_public_documents(root: Path, version: str) -> None:
+    """Require current public release notes; private docs never affect releases."""
+    root = Path(root)
+    changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+    headings = re.findall(r"(?m)^##[ \t]+(.+)$", changelog)
+    version_heading = re.compile(rf"^v?({VERSION_PATTERN})(?=[ \t—–:-]|$)")
+    releases = [match[1] for heading in headings if (match := version_heading.match(heading))]
+    if not releases or releases[0] != version:
+        raise ValueError(f"CHANGELOG.md: latest release entry must be {version}")
+    schema_path = root / "user-guide" / "unit_contract_schema.json"
+    if schema_path.exists():
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        if (not isinstance(schema, dict) or not isinstance(schema.get("$schema"), str)
+                or schema.get("type") != "object" or not isinstance(schema.get("properties"), dict)):
+            raise ValueError("Public unit contract schema must be an object JSON Schema")
+
+
 def check_source(root: Path, expected_version: str | None = None) -> str:
-    """Require the current source version, changelog and unit handoff to agree."""
+    """Require valid source metadata and matching public release notes."""
     root = Path(root)
     project = _project_fields((root / "pyproject.toml").read_text(encoding="utf-8"))
     if project["name"] != DISTRIBUTION:
@@ -64,18 +81,7 @@ def check_source(root: Path, expected_version: str | None = None) -> str:
         raise ValueError("Release version must be a static X.Y.Z version")
     if expected_version is not None and expected_version != version:
         raise ValueError(f"Expected version {expected_version!r} disagrees with source {version}")
-    changelog = (root / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
-    headings = re.findall(r"(?m)^##[ \t]+(.+)$", changelog)
-    version_heading = re.compile(rf"^v?({VERSION_PATTERN})(?=[ \t—–:-]|$)")
-    releases = [match[1] for heading in headings if (match := version_heading.match(heading))]
-    if not releases or releases[0] != version:
-        raise ValueError(f"CHANGELOG.md: latest release entry must be {version}")
-    handoff = json.loads((root / "docs" / "unit_contract_handoff.json").read_text(encoding="utf-8"))
-    implementation = handoff.get("implementation", {}) if isinstance(handoff, dict) else {}
-    if not isinstance(implementation, dict):
-        raise ValueError("Unit handoff implementation must be an object")
-    if implementation.get("package") != DISTRIBUTION or implementation.get("package_version") != version:
-        raise ValueError("Unit handoff package name/version disagrees with source")
+    check_public_documents(root, version)
     return version
 
 
@@ -105,6 +111,21 @@ def expected_runtime_files(root: Path) -> dict[str, bytes]:
     if f"{PACKAGE}/__init__.py" not in expected:
         raise ValueError("Source package is missing jarvis_operas/__init__.py")
     return expected
+
+
+def expected_public_documents(root: Path) -> dict[str, bytes]:
+    root = Path(root)
+    names = ["CHANGELOG.md"]
+    names.extend(path.relative_to(root).as_posix() for path in (root / "user-guide").rglob("*")
+                 if path.is_file() and path.suffix in {".md", ".json"})
+    return {name: (root / name).read_bytes() for name in names}
+
+
+def is_private_document(name: str) -> bool:
+    path = PurePosixPath(name)
+    return bool(path.parts) and (
+        path.parts[0] == "docs" or path.as_posix() == "jarvis_operas/namespaces/hts/DESIGN_REVIEW.md"
+    )
 
 
 def _check_metadata(payload: bytes, version: str, label: str) -> None:
@@ -181,6 +202,8 @@ def check_sdist(root: Path, sdist: Path, version: str) -> dict[str, object]:
                 files[name] = stream.read()
         if "PKG-INFO" not in files:
             raise ValueError("Sdist is missing distribution metadata")
+        if any(is_private_document(name) for name in files):
+            raise ValueError("Sdist contains private documentation")
         _check_metadata(files["PKG-INFO"], version, "Sdist")
         info_paths = [name for name in files if name.endswith(".egg-info/PKG-INFO")]
         if len(info_paths) != 1:
@@ -194,6 +217,9 @@ def check_sdist(root: Path, sdist: Path, version: str) -> dict[str, object]:
         for name in ("pyproject.toml",):
             if name not in files or files[name] != (Path(root) / name).read_bytes():
                 raise ValueError(f"Sdist has missing or stale content: {name}")
+        for name, payload in expected_public_documents(root).items():
+            if files.get(name) != payload:
+                raise ValueError(f"Sdist has missing or stale public documentation: {name}")
         _check_runtime(expected, files, "Sdist")
         # Tests/scripts may be Python source, but another importable package is not ours.
         other_packages = [name for name in files if name.endswith("/__init__.py")

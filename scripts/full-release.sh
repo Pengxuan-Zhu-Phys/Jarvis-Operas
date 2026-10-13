@@ -66,13 +66,12 @@ if [[ -n "$wheelhouse" ]]; then
 fi
 cd "$release_root"
 
-# Compute the requested version and validate its release notes before any write.
+# Compute the requested version and validate public release notes before writes.
 version="$("$python_bin" - "$requested_version" <<'PY'
 from pathlib import Path
-import json
 import re
 import sys
-from scripts.check_release import DISTRIBUTION, VERSION_PATTERN, _project_fields
+from scripts.check_release import DISTRIBUTION, VERSION_PATTERN, _project_fields, check_public_documents
 if sys.version_info < (3, 10):
     raise SystemExit('Release preparation requires Python 3.10 or newer')
 text = Path('pyproject.toml').read_text(encoding='utf-8')
@@ -82,15 +81,10 @@ if project['name'] != DISTRIBUTION:
 version = sys.argv[1] or project['version']
 if not re.fullmatch(VERSION_PATTERN, version):
     raise SystemExit('Expected an X.Y.Z release version')
-headings = re.findall(r'(?m)^##[ \t]+(.+)$', Path('docs/CHANGELOG.md').read_text())
-pattern = re.compile(rf'^v?({VERSION_PATTERN})(?=[ \t—–:-]|$)')
-releases = [match[1] for heading in headings if (match := pattern.match(heading))]
-if not releases or releases[0] != version:
-    raise SystemExit(f'Add complete latest docs/CHANGELOG.md notes for {version} before preparing it')
-handoff = json.loads(Path('docs/unit_contract_handoff.json').read_text())
-implementation = handoff.get('implementation', {})
-if implementation.get('package') != DISTRIBUTION or implementation.get('package_version') not in {project['version'], version}:
-    raise SystemExit('Unit handoff package name/version disagrees with source')
+try:
+    check_public_documents(Path('.'), version)
+except (OSError, ValueError) as exc:
+    raise SystemExit(f'Release check failed: {exc}') from exc
 print(version)
 PY
 )"
@@ -103,7 +97,6 @@ fi
 
 "$python_bin" - "$version" <<'PY'
 from pathlib import Path
-import json
 import re
 import sys
 version = sys.argv[1]
@@ -115,12 +108,6 @@ updated, count = re.subn(pattern, lambda m: m[1] + m[2] + version + m[2] + m[4],
 if count != 1:
     raise SystemExit('Cannot update project.version')
 new_text = text[:project.start(1)] + updated + text[project.end(1):]
-handoff_path = Path('docs/unit_contract_handoff.json')
-handoff = json.loads(handoff_path.read_text(encoding='utf-8'))
-if handoff['implementation']['package_version'] != version:
-    handoff['implementation']['package_version'] = version
-    handoff['implementation']['source_state'] = 'release preparation; publication handled separately by maintainer'
-    handoff_path.write_text(json.dumps(handoff, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 if new_text != text:
     path.write_text(new_text, encoding='utf-8')
     print(f'Updated source version to {version}', file=sys.stderr)
@@ -167,14 +154,17 @@ import hashlib
 import shutil
 import subprocess
 import sys
-from scripts.check_release import expected_runtime_files
+from scripts.check_release import expected_runtime_files, is_private_document
 root, target = map(Path, sys.argv[1:])
 # Missing tracked native modules/resources must not silently vanish from a snapshot.
 expected_runtime_files(root)
 tracked = subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).decode().split('\0')
-required = ['jorel', 'scripts/full-release.sh', 'scripts/check_release.py', 'scripts/smoke_install.py']
+required = ['jorel', 'scripts/full-release.sh', 'scripts/check_release.py', 'scripts/smoke_install.py', 'CHANGELOG.md']
 source_hash = hashlib.sha256()
+# Private docs are never release inputs, including stale tracked index entries.
 for relative in sorted(set(filter(None, tracked)) | set(required)):
+    if is_private_document(relative):
+        continue
     source = root / relative
     if source.is_file():
         destination = target / relative

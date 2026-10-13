@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tarfile
 import textwrap
 
 import pytest
@@ -231,6 +232,8 @@ def release_repository(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
         ]
     required = ["jorel", "scripts/full-release.sh", "scripts/check_release.py", "scripts/smoke_install.py"]
     for relative in sorted(set(filter(None, tracked)) | set(required)):
+        if Path(relative).parts[0] == "docs":
+            continue
         source = ROOT / relative
         if not source.is_file():
             continue
@@ -245,6 +248,20 @@ def release_repository(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
          "commit", "-q", "-m", "Disposable release fixture"],
         cwd=repository,
         check=True,
+    )
+    # Ignored internal records cannot influence or enter public release artifacts.
+    (repository / "docs").mkdir()
+    (repository / "docs" / "CHANGELOG.md").write_text(
+        "Internal notes with no public release heading.\n",
+        encoding="utf-8",
+    )
+    (repository / "docs" / "unit_contract_handoff.json").write_text(
+        "Malformed internal JSON must not affect a public release.\n",
+        encoding="utf-8",
+    )
+    (repository / "docs" / "internal-sentinel.md").write_text("Never package internal notes.\n")
+    (repository / "jarvis_operas" / "namespaces" / "hts" / "DESIGN_REVIEW.md").write_text(
+        "Never package internal design review.\n"
     )
     # The build must preserve current tracked edits and omit unrelated untracked files.
     with (repository / "README.md").open("a") as readme:
@@ -311,8 +328,15 @@ def test_dry_release_verifies_tracked_snapshot_without_upload(
     build = next(record for record in records if record["stage"] == "build")
     assert "Tracked release test edit." in build["snapshot_readme"]
     assert "untracked-secret.txt" not in build["snapshot_files"]
+    assert "CHANGELOG.md" in build["snapshot_files"]
+    assert "user-guide/unit_contract.md" in build["snapshot_files"]
+    assert not any(Path(name).parts[0] == "docs" for name in build["snapshot_files"])
+    assert "jarvis_operas/namespaces/hts/DESIGN_REVIEW.md" not in build["snapshot_files"]
     output = caller / "verified artifacts"
     assert len(list(output.glob("*.whl"))) == len(list(output.glob("*.tar.gz"))) == 1
+    with tarfile.open(next(output.glob("*.tar.gz")), "r:gz") as archive:
+        assert all("docs" not in Path(name).parts for name in archive.getnames())
+        assert all(Path(name).name != "DESIGN_REVIEW.md" for name in archive.getnames())
     report = json.loads((output / "release-verification.json").read_text())
     assert report["source_snapshot_sha256"] == build["snapshot_sha256"]
     assert (output / "SHA256SUMS").is_file()
@@ -352,6 +376,19 @@ def test_default_release_uploads_only_the_verified_wheel_and_sdist(
     paths = [Path(argument) for argument in upload["args"] if argument.endswith((".whl", ".tar.gz"))]
     assert set(paths) == set((caller / "verified artifacts").glob("*.whl")) | set((caller / "verified artifacts").glob("*.tar.gz"))
     assert len(paths) == 2
+
+
+def test_default_release_from_checkout_without_local_docs(
+    release_repository: tuple[Path, Path, Path, Path],
+) -> None:
+    repository, caller, _, _ = release_repository
+    shutil.rmtree(repository / "docs")
+    completed, records = _run_release(release_repository, "--output", "verified artifacts")
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert records[-1]["stage"] == "upload"
+    build = next(record for record in records if record["stage"] == "build")
+    assert not any(Path(name).parts[0] == "docs" for name in build["snapshot_files"])
+    assert (caller / "verified artifacts" / "release-verification.json").is_file()
 
 
 def test_existing_output_is_preserved_and_rejected_before_version_change(
@@ -404,19 +441,19 @@ def test_requested_version_requires_changelog_before_changing_source(
     assert not (caller / "verified artifacts").exists()
 
 
-def test_requested_version_updates_source_and_handoff_after_changelog_preparation(
+def test_requested_version_updates_source_after_public_changelog_preparation(
     release_repository: tuple[Path, Path, Path, Path],
 ) -> None:
     repository, caller, _, _ = release_repository
-    changelog = repository / "docs" / "CHANGELOG.md"
+    changelog = repository / "CHANGELOG.md"
+    internal_handoff = (repository / "docs" / "unit_contract_handoff.json").read_bytes()
     changelog.write_text(
         changelog.read_text().replace("# Changelog\n", "# Changelog\n\n## 1.5.1 — 2026-10-13\n\nPrepared test release.\n", 1)
     )
     completed, records = _run_release(release_repository, "1.5.1", "--dry", "--output", "verified artifacts")
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert 'version = "1.5.1"' in (repository / "pyproject.toml").read_text()
-    handoff = json.loads((repository / "docs" / "unit_contract_handoff.json").read_text())
-    assert handoff["implementation"]["package_version"] == "1.5.1"
+    assert (repository / "docs" / "unit_contract_handoff.json").read_bytes() == internal_handoff
     assert len(list((caller / "verified artifacts").glob("*1.5.1*.whl"))) == 1
     assert not any(record["stage"] == "upload" for record in records)
 

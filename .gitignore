@@ -223,15 +223,7 @@ marimo/_lsp/
 __marimo__/
 .DS_Store
 
-# Generated function documentation stays out of VCS; checked-in project docs are explicit exceptions.
-docs/*
-!docs/architecture.md
-!docs/migration.md
-!docs/CHANGELOG.md
-!docs/MAINTAINER_NAMESPACE_FUNCTION_PLAYBOOK_CN.md
-!docs/MAINTAINING.md
-!docs/unit_contract.md
-!docs/unit_contract_handoff.json
-!docs/INTERNAL_FUNCTION_UNIT_UPDATES.md
-!docs/RELEASING.md
+# Internal documentation and generated function docs remain local.
+/docs/
 agent_maintenance/
+jarvis_operas/namespaces/hts/DESIGN_REVIEW.md

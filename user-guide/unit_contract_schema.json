@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Jarvis-Operas metadata.unit_contract 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version"
+  ],
+  "properties": {
+    "version": {
+      "const": "1.0"
+    },
+    "inputs": {
+      "type": "object",
+      "default": {},
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/unit_spec"
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "default": {},
+      "additionalProperties": {
+        "$ref": "#/$defs/unit_spec"
+      }
+    }
+  },
+  "$defs": {
+    "unit_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unit"
+      ],
+      "properties": {
+        "unit": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A registered unit symbol or supported alias; validated against unit_catalog."
+        },
+        "shape": {
+          "default": "scalar_or_array",
+          "oneOf": [
+            {
+              "enum": [
+                "scalar",
+                "array",
+                "scalar_or_array"
+              ]
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          ]
+        },
+        "nullable": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    }
+  }
+}
