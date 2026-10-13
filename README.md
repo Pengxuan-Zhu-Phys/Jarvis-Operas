@@ -394,6 +394,20 @@ python scripts/generate_function_docs.py --namespaces math,stat
 python scripts/generate_function_docs.py --out docs/custom_functions
 ```
 
+## Release candidates
+
+Prepare a verified wheel and source distribution without uploading:
+
+```bash
+./joerl 1.5.0 --dry --output dist/1.5.0
+```
+
+The helper verifies source/package consistency, runs the full test suite, and
+installs the complete wheel in a clean environment for dependency and unit/CLI
+smoke checks. Successful candidates include `release-verification.json` and
+`SHA256SUMS`. See [the release procedure](docs/RELEASING.md) for tooling, local
+wheelhouses, shell sourcing, and explicit publication.
+
 ## Workspace clean
 
 Clean local cache/build artifacts:

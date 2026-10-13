@@ -199,7 +199,7 @@ cython_debug/
 .pypirc.*
 
 # Private PyPI release workflow (local only)
-joerl
+# The release helper contains no credentials and is maintained in Git.
 .twine/
 .twinerc
 twine.env
@@ -233,4 +233,5 @@ docs/*
 !docs/unit_contract.md
 !docs/unit_contract_handoff.json
 !docs/INTERNAL_FUNCTION_UNIT_UPDATES.md
+!docs/RELEASING.md
 agent_maintenance/

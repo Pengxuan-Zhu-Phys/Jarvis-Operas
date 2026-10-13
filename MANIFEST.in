@@ -1,2 +1,8 @@
 recursive-include jarvis_operas/manifests *.json
 recursive-include jarvis_operas/models *.pkl *.md *.txt
+include joerl
+include scripts/full-release.sh scripts/check_release.py scripts/smoke_install.py
+include scripts/generate_function_docs.py
+include docs/CHANGELOG.md docs/RELEASING.md docs/MAINTAINING.md docs/architecture.md
+include docs/unit_contract.md docs/unit_contract_handoff.json docs/INTERNAL_FUNCTION_UNIT_UPDATES.md
+include examples/unit_contract_demo.py examples/unit_contract_ops.py

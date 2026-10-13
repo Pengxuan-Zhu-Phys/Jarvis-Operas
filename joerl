@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Source in Bash/Zsh or execute directly. Candidate preparation is the default.
+_jorel_SRC="$0"
+if [[ -n "${BASH_VERSION:-}" ]]; then
+  _jorel_SRC="${BASH_SOURCE[0]}"
+elif [[ -n "${ZSH_VERSION:-}" ]]; then
+  _jorel_SRC="$(eval 'echo ${(%):-%x}')"
+fi
+_jorel_DIR="$(cd "$(dirname "$_jorel_SRC")" && pwd)"
+jorel() { bash "$_jorel_DIR/scripts/full-release.sh" "$@"; }
+joerl() { jorel "$@"; }
+_jorel_sourced=0
+if [[ -n "${BASH_VERSION:-}" ]]; then
+  [[ "${BASH_SOURCE[0]}" != "$0" ]] && _jorel_sourced=1
+elif [[ -n "${ZSH_VERSION:-}" ]]; then
+  case "${ZSH_EVAL_CONTEXT:-}" in *:file) _jorel_sourced=1 ;; esac
+fi
+if [[ "$_jorel_sourced" -eq 0 ]]; then
+  jorel "$@"
+fi
