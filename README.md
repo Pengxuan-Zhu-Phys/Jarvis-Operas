@@ -412,31 +412,28 @@ python scripts/generate_function_docs.py --out docs/custom_functions
 
 ## Releases
 
-Build, verify, and publish a release to PyPI:
+Version `1.5.0` is already published. For a new release, add its version heading
+and changes to `CHANGELOG.md`, then build, verify, and publish to PyPI. These
+commands use `1.5.1` only as an example of a new version:
 
 ```bash
-./jorel 1.5.0
+source ./jorel
+jorel 1.5.1
 ```
 
-The helper checks source/package versions, public documentation, and bundled
-resources; builds the wheel/sdist; runs release gates and the full test suite;
-and installs the complete wheel with its runtime dependencies in a clean
-environment. It checks the installed CLI and unit API before publishing those
-exact artifacts. A failed check stops publication. Configure Twine credentials
-before running it.
+`jorel` bumps `pyproject.toml`, runs the release gate and the full test suite,
+builds and checks the wheel/sdist, and uploads them to PyPI. It then
+reinstalls that version from PyPI and checks the import. Configure Twine
+credentials before running it. An already published version cannot be uploaded
+again with replacement files.
 
-To prepare artifacts without publishing:
+To build and check without publishing, add `--dry`, the only option:
 
 ```bash
-./jorel 1.5.0 --dry --output dist/1.5.0
+jorel 1.5.1 --dry
 ```
 
-`--dry` runs the same build and verification gates and skips publication. The
-output defaults to `dist/<version>`; `--output` selects another fresh empty
-directory. Successful verification writes the wheel/sdist,
-`release-verification.json`, and `SHA256SUMS` there. Run `./jorel --help` for
-Python selection, wheelhouse, and offline options. Release changes are recorded
-in [CHANGELOG.md](CHANGELOG.md).
+Release changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ## Workspace clean
 
