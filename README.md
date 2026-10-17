@@ -7,13 +7,15 @@ Jarvis-Operas is a standalone operator layer for registering, loading, and calli
 - Native async entrypoint for Jarvis-HEP style execution (`await registry.acall(...)`)
 - Stable `"<namespace>.<name>"` naming for references from Jarvis-HEP/Jarvis-PLOT YAML
 
-Public documentation:
+Documentation lives in [Jarvis-Books](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/README.md):
 
+- [User guide](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/user-guide/README.md)
+- [Unit contract v1.0](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/user-guide/unit_contract.md)
+- [Built-in function units](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/user-guide/builtin_units.md)
+- [Unit contract JSON Schema](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/user-guide/unit_contract_schema.json)
+- [Function reference](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/functions/index.md)
+- [Legacy 1.2.x migration notes](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/user-guide/archive/migration-1.2.md)
 - [Changelog](CHANGELOG.md)
-- [Migration guide](user-guide/migration.md)
-- [Unit contract v1.0](user-guide/unit_contract.md)
-- [Built-in function units](user-guide/builtin_units.md)
-- [Unit contract JSON Schema](user-guide/unit_contract_schema.json)
 
 ## Install
 
@@ -34,6 +36,7 @@ After install, you can use:
 ```bash
 jopera
 jopera help examples
+jopera namespaces
 jopera list --namespace math
 jopera list --namespace math --json
 jopera info stat.chi2_cov --json
@@ -75,7 +78,6 @@ CLI behavior:
 - `jopera interp list` lists root interpolation namespaces
 - `jopera interp validate` validates root+namespace manifests
 - User write policy: the supported user write path is `jopera load`
-- Developer-only write commands (`update`, `delete-func`, `delete-namespace`, `interp add/remove`) require `JARVIS_OPERAS_DEV_WRITE=1`
 
 ## Core API
 
@@ -93,9 +95,9 @@ assert result.values[""] == 91187.6
 ```
 
 Use `jopera call pdg.mZ --output-units '{"":"MeV"}' --json` from the CLI.
-The [unit guide](user-guide/unit_contract.md) includes the metadata schema,
+The [unit guide](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/user-guide/unit_contract.md) includes the metadata schema,
 strict source validation, TeV → GeV input, and pb → fb output examples. The
-[JSON Schema](user-guide/unit_contract_schema.json) describes declaration
+[JSON Schema](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/user-guide/unit_contract_schema.json) describes declaration
 structure; registered unit symbols and callable parameters are validated by JO.
 HEP YAML unit fields and its executor bridge remain downstream work.
 
@@ -252,10 +254,10 @@ Prepare registrations and fixed unit plans during host initialization, then
 reuse them during execution. Direct implementation calls bypass unit validation;
 downstream integrations must use these public entry points. JO provides
 declarations, registration, and dispatch; hosts own sample objects, YAML parsing,
-and observable storage. See the [migration guide](user-guide/migration.md) for
-supported import paths and reload behavior.
+and observable storage. The [user guide](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/user-guide/README.md) links to current
+unit execution examples and archived migration notes.
 
-## Function Docs Generation
+## Function documentation generation
 
 Function docs are generated from `OperaFunction.metadata`:
 
@@ -263,10 +265,22 @@ Function docs are generated from `OperaFunction.metadata`:
 python scripts/generate_function_docs.py --out docs/functions
 ```
 
-Generated artifacts are local outputs:
+Generated artifacts are local outputs under the ignored `docs/` directory. The
+published copy is the [function reference](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/functions/index.md) in
+Jarvis-Books.
 
+
+- `docs/functions/index.md`
+- `docs/functions/<namespace>/index.md`
 - `docs/functions/functions.json`
 - `docs/functions/<namespace>/<function>.md`
+
+Optional filters and output directory:
+
+```bash
+python scripts/generate_function_docs.py --namespaces math,stat
+python scripts/generate_function_docs.py --out docs/custom_functions
+```
 
 ## Curve publish/runtime cache (namespace manifests + JSON sources)
 
@@ -277,16 +291,16 @@ Use this flow when you have many 1D interpolation curves and want runtime speed:
    - one manifest per namespace (function metadata list)
    - per-function JSON source (`x`/`y` arrays)
 2. Precompile once: `jopera init` (bundled library) or `jopera init --manifest ./manifest.json` (custom)
-   - optional: `jopera init --namespaces dmdd,interp1` for partial namespace processing
-   - optional maintenance: `jopera interp list|validate|add|remove`
-3. Runtime auto-registration: `get_global_operas_registry()` registers hot curves as `interp.<curve_id>`
-4. Runtime load path uses `index.json` + `*.pkl` only (no source JSON in hot path)
+   - optional: `jopera init --namespaces dmddxn,interp1` for partial namespace processing
+   - inspect manifests with `jopera interp list` and `jopera interp validate`
+3. Runtime auto-registration: `get_global_operas_registry()` initializes the bundled cache and registers hot curves in their resolved namespaces, such as `dmddxn.LZSI2024` and `dmddxe.CDEXLM2022`
+4. After initialization, cached curve loading uses `index.json` + `*.pkl`; evaluation reuses the loaded callable
 
 Namespace rule for registered interpolation operators:
 
-- If `namespace` is set in curve item, register as `<namespace>.<curve_id>`
-- Else if `metadata.group` (or `group`) is set, register as `<group>.<curve_id>`
-- Else fallback to `interp.<curve_id>`
+- Use the first available declaration: the curve item's `namespace`, its `group`, its `metadata.group`, then the namespace manifest or root-index namespace.
+- Register as `<resolved_namespace>.<curve_id>`; use `interp.<curve_id>` only when no namespace is declared.
+- Bundled interpolation namespaces are `interp1`, `dmddxn` (DM-nucleon), and `dmddxe` (DM-electron).
 
 Bundled interpolation manifest library resource:
 
@@ -300,8 +314,8 @@ Root index example:
   "kind": "jarvis_operas_interpolation_namespace_index",
   "namespaces": [
     {
-      "namespace": "dmdd",
-      "manifest": "dmdd/dmdd.manifest.json"
+      "namespace": "demo",
+      "manifest": "demo/demo.manifest.json"
     }
   ]
 }
@@ -311,15 +325,15 @@ Namespace manifest example:
 
 ```json
 {
-  "namespace": "dmdd",
+  "namespace": "demo",
   "functions": [
     {
       "name": "demo_curve",
-      "source": "dmdd/demo_curve.json",
+      "source": "demo/demo_curve.json",
       "kind": "linear",
       "hot": true,
       "metadata": {
-        "group": "dmdd"
+        "group": "demo"
       }
     }
   ]
@@ -364,13 +378,22 @@ Interpolation functions support:
 
 ## Built-in operators
 
-- `math.add(a, b)`
-- `stat.chi2_cov(residual, cov)`
-- `helper.eggbox(x, y)`
-- `math.identity(x)`
+| Namespace | Available operators |
+| --- | --- |
+| `math` | Generic `add` and `identity`. |
+| `stat` | Covariance chi-square with `chi2_cov`. |
+| `helper` | Benchmark functions `eggbox` and `eggbox2d`. |
+| `pdg` | Particle masses, couplings, and physical constants, including `mZ`, `GF`, and `hbarc`. |
+| `cmb` | `tt_cosmopower` prediction and `loglike` on the bundled 111-point Planck TT grid. |
+| `interp1` | Four general interpolation examples. |
+| `dmddxn` | 27 DM-nucleon exclusion curves; input in GeV and output in cm². |
+| `dmddxe` | 20 DM-electron exclusion curves; input in MeV and output in cm². |
+| `HTs` | Optional HiggsTools evaluator and helpers; the current prototype requires an external package and local datasets. See its [status and setup notes](jarvis_operas/namespaces/hts/README.md). |
 
-All built-ins can be called via sync/async registry APIs and accept scalar, NumPy, and Pandas inputs where applicable.
-Example:
+Use `jopera namespaces`, `jopera list --namespace NAME`, and `jopera info NAME`
+to discover functions and their signatures, units, and supported backends.
+Sync/async dispatch is available through the registry; accepted containers and
+backend support depend on each function. Examples:
 
 ```python
 registry.call("math.add", a=1.0, b=2.0)
@@ -387,28 +410,6 @@ registry.info("stat.chi2_cov")
 ```
 
 `registry.info(...)` returns metadata, signature, docstring summary, backend support fields, and async flag.
-
-## Function docs generation (OperaFunction-driven)
-
-Jarvis-Operas can auto-generate per-function docs from `OperaFunction` declarations.
-
-```bash
-python scripts/generate_function_docs.py
-```
-
-Output is generated under `docs/functions/`:
-
-- `docs/functions/index.md`
-- `docs/functions/<namespace>/index.md`
-- `docs/functions/<namespace>/<function>.md`
-- `docs/functions/functions.json`
-
-Optional filters:
-
-```bash
-python scripts/generate_function_docs.py --namespaces math,stat
-python scripts/generate_function_docs.py --out docs/custom_functions
-```
 
 ## Releases
 

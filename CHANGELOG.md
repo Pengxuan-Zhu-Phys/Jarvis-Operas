@@ -1,10 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- Move all documentation, including the user guide, the unit contract JSON
+  Schema and the HTs notes, to [Jarvis-Books](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/README.md). The repository
+  and the source distribution keep only `README.md` and `CHANGELOG.md` as
+  documentation.
+- Consolidate duplicate README sections and correct obsolete CLI, curve
+  namespace, and release instructions.
+- Archive redundant document copies and historical task/design reports, and
+  regenerate the function reference from declaration metadata.
+
 ## 1.5.0 — 2026-10-13
 
-Release preparation: package version is `1.5.0`; the maintainer publishes after
-verification. This release adds the shared unit contract and canonical units
-for 64 existing physical operators. See the [complete per-function update list](user-guide/builtin_units.md).
+Released on PyPI on 2026-10-13. This release adds the shared unit contract
+and canonical units
+for 64 existing physical operators. See the [complete per-function update list](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/user-guide/builtin_units.md).
 
 ### Shared unit contract and metadata
 
@@ -118,9 +129,9 @@ for 64 existing physical operators. See the [complete per-function update list](
 
 ### Documentation, examples, and integration boundaries
 
-- Publish [the implemented unit API and schema guide](user-guide/unit_contract.md),
-  its [JSON Schema](user-guide/unit_contract_schema.json), and
-  [all 64 built-in function declarations](user-guide/builtin_units.md).
+- Publish [the implemented unit API and schema guide](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/user-guide/unit_contract.md),
+  its [JSON Schema](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/user-guide/unit_contract_schema.json), and
+  [all 64 built-in function declarations](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/user-guide/builtin_units.md).
 - Add runnable Python and user-operator CLI fixtures demonstrating 0.2 TeV →
   200 GeV, 0.038332 pb → 38.332 fb, fixed/dynamic sources, sync/async agreement,
   and protection of canonical records.
@@ -197,47 +208,20 @@ for 64 existing physical operators. See the [complete per-function update list](
 
 ### Validation
 
-- Final public-documentation candidate without internal `docs/`: full suite
-  — 344 passed. Focused release contract checks — 54 passed; public-documentation
-  and shell workflow checks — 34 passed. Internal document exclusion tests use
-  malformed local records and fake uploads.
-- Rebuilt 1.5.0 wheel/sdist pass `twine check` and all 121 runtime-file
-  comparisons. The sdist contains root `CHANGELOG.md` and all four public
-  guide/schema files; neither `docs/` nor HTs `DESIGN_REVIEW.md` is packaged.
-- Unit engine, registry, built-ins, CMB, and unit CLI checks — 88 passed.
-  The existing Python 3.13 fork-fixture warning remains the only full-suite
-  warning.
-- After the canonical `jorel` naming and default-publication update, the 30
-  shell/workflow tests passed using fake uploads. Bash/Zsh syntax and canonical
-  helper help checks passed. Rebuilt 1.5.0 wheel/sdist artifacts passed
-  `twine check` and all 121 runtime-file comparisons; the source archive contains
-  `jorel` and the updated publish-after-verification policy.
-- Earlier full regression suite in the verified candidate workflow: `python -m pytest -q`
-  — 332 passed. One Python 3.13 multithreaded-fork deprecation warning comes
-  from the intentional fork fixture. Release-gate subset — 3 passed.
-- Earlier focused release verification/helper tests — 74 passed: 44 source/
-  artifact contract checks and 30 shell/workflow checks. Cover preparation/
-  publication selection using fake uploads, Bash/Zsh executable and sourcing
-  behavior, option failures before mutation, version preflight, fresh
-  outputs, local dependency paths, and verified artifact/report handling.
-- Earlier unit-contract implementation phase: full suite — 258 passed; final
-  unit/registry/builtin/CMB checks after alias/empty-mapping guards — 75 passed.
-  Cover conversions, strict/default/source conflicts, bool/None/finite/shape
-  validation, immutability, concurrency, public paths, and user-source metadata.
-- Candidate build with existing tools (`--no-isolation`): wheel and sdist pass
-  `twine check` and source/artifact drift checks for all 121 tracked runtime
-  files in each artifact. Generate 90 function documents from declarations.
-  The earlier packaged-wheel smoke verified the public unit API and all 47
-  physical curve contracts.
-- Complete dry candidate preparation succeeded before the wrapper spelling
-  correction. The equivalent command is `./jorel 1.5.0 --dry --no-isolation
-  --output /private/tmp/jarvis-operas-release-150-validated`.
-  A separate clean venv installed the ordinary wheel and every runtime
-  dependency; `pip check` found no broken requirements. Isolated installed
-  smoke passed for 64 physical unit contracts, 47 curves, CMB resources, CLI,
-  sync/async/batch execution, diagnostic errors, and canonical record protection.
-  The fresh output contains one wheel, one sdist, `release-verification.json`,
-  and `SHA256SUMS`. This was candidate preparation without publication.
+- Complete isolated release workflow: 344 tests passed, with one Python 3.13
+  multithreaded-fork warning from the isolation test; release gate — 3 passed.
+- Focused source/artifact contract checks — 54 passed; public-documentation
+  and shell workflow checks — 34 passed; unit/registry/built-in/CMB/CLI checks
+  — 88 passed.
+- Wheel and sdist passed `twine check` and all 121 runtime-file comparisons.
+  The sdist includes the public changelog and unit guides and excludes internal
+  documents. The workflow separately generated reference pages for 90 functions.
+- A clean environment installed the wheel and all runtime dependencies;
+  `pip check` and installed CLI/unit smoke passed for 64 physical unit contracts,
+  47 curves, CMB resources, async/batch calls, diagnostics, and record protection.
+- Both distributions were published to [PyPI](https://pypi.org/project/Jarvis-Operas/1.5.0/).
+  Published SHA-256 values match the local verification report. Release tag
+  `1.5.0` points to `c4af128`; the cleaned branch and historical tag were pushed.
 
 ## 1.4.0
 

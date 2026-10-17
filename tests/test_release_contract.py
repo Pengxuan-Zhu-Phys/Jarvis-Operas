@@ -42,11 +42,6 @@ def source(tmp_path):
         '[project.optional-dependencies]\ndev = ["pytest"]\n', encoding="utf-8",
     )
     (root / "CHANGELOG.md").write_text(f"# Changelog\n\n## {VERSION} — 2026-10-13\n\nRelease.\n")
-    (root / "user-guide").mkdir()
-    (root / "user-guide/unit_contract.md").write_text("# Public unit contract guide\n")
-    (root / "user-guide/unit_contract_schema.json").write_text(json.dumps({
-        "$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "properties": {},
-    }))
     for name, payload in RESOURCES.items():
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -88,8 +83,6 @@ def artifacts(root, *, wheel_damage=None, sdist_damage=None):
             archive.writestr(name, payload)
     sdist_files = {**RESOURCES, "pyproject.toml": (root / "pyproject.toml").read_bytes(),
                    "CHANGELOG.md": (root / "CHANGELOG.md").read_bytes(),
-                   **{path.relative_to(root).as_posix(): path.read_bytes()
-                      for path in (root / "user-guide").rglob("*") if path.is_file()},
                    "PKG-INFO": metadata, "Jarvis_Operas.egg-info/PKG-INFO": metadata,
                    "Jarvis_Operas.egg-info/entry_points.txt": entrypoint}
     damage(sdist_files, sdist_damage)
@@ -158,13 +151,6 @@ def test_source_does_not_depend_on_private_documents(source, private_docs):
     assert (source / "docs").exists() is private_docs
 
 
-@pytest.mark.parametrize("payload", ["broken json", "[]", '{"implementation":{"package_version":"1.5.0"}}'])
-def test_source_rejects_malformed_public_schema(source, payload):
-    (source / "user-guide/unit_contract_schema.json").write_text(payload)
-    with pytest.raises(ValueError):
-        check_source(source)
-
-
 def test_python310_project_fallback_is_scoped_and_static(monkeypatch):
     original = builtins.__import__
 
@@ -199,17 +185,15 @@ def test_sdist_rejects_missing_and_stale_runtime_content(source, resource, actio
         check_sdist(source, sdist, VERSION)
 
 
-@pytest.mark.parametrize("resource", ["CHANGELOG.md", "user-guide/unit_contract.md", "user-guide/unit_contract_schema.json"])
 @pytest.mark.parametrize("action", ["missing", "stale"])
-def test_sdist_requires_current_public_documentation(source, resource, action):
-    _, _, sdist = artifacts(source, sdist_damage=(action, resource))
+def test_sdist_requires_current_changelog(source, action):
+    _, _, sdist = artifacts(source, sdist_damage=(action, "CHANGELOG.md"))
     with pytest.raises(ValueError, match="public documentation"):
         check_sdist(source, sdist, VERSION)
 
 
-@pytest.mark.parametrize("name", ["docs/DESIGN.md", "jarvis_operas/namespaces/hts/DESIGN_REVIEW.md"])
-def test_sdist_rejects_private_documents(source, name):
-    _, _, sdist = artifacts(source, sdist_damage=("extra", name))
+def test_sdist_rejects_private_documents(source):
+    _, _, sdist = artifacts(source, sdist_damage=("extra", "docs/DESIGN.md"))
     with pytest.raises(ValueError, match="private documentation"):
         check_sdist(source, sdist, VERSION)
 

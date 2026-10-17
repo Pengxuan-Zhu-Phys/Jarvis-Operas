@@ -223,7 +223,6 @@ marimo/_lsp/
 __marimo__/
 .DS_Store
 
-# Internal documentation and generated function docs remain local.
+# Documentation lives in Jarvis-Books/Docs; a local docs/ (for example generated
+# function pages) is never committed.
 /docs/
-agent_maintenance/
-jarvis_operas/namespaces/hts/DESIGN_REVIEW.md

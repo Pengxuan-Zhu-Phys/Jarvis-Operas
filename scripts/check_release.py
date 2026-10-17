@@ -62,12 +62,6 @@ def check_public_documents(root: Path, version: str) -> None:
     releases = [match[1] for heading in headings if (match := version_heading.match(heading))]
     if not releases or releases[0] != version:
         raise ValueError(f"CHANGELOG.md: latest release entry must be {version}")
-    schema_path = root / "user-guide" / "unit_contract_schema.json"
-    if schema_path.exists():
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        if (not isinstance(schema, dict) or not isinstance(schema.get("$schema"), str)
-                or schema.get("type") != "object" or not isinstance(schema.get("properties"), dict)):
-            raise ValueError("Public unit contract schema must be an object JSON Schema")
 
 
 def check_source(root: Path, expected_version: str | None = None) -> str:
@@ -114,18 +108,12 @@ def expected_runtime_files(root: Path) -> dict[str, bytes]:
 
 
 def expected_public_documents(root: Path) -> dict[str, bytes]:
-    root = Path(root)
-    names = ["CHANGELOG.md"]
-    names.extend(path.relative_to(root).as_posix() for path in (root / "user-guide").rglob("*")
-                 if path.is_file() and path.suffix in {".md", ".json"})
-    return {name: (root / name).read_bytes() for name in names}
+    return {"CHANGELOG.md": (Path(root) / "CHANGELOG.md").read_bytes()}
 
 
 def is_private_document(name: str) -> bool:
     path = PurePosixPath(name)
-    return bool(path.parts) and (
-        path.parts[0] == "docs" or path.as_posix() == "jarvis_operas/namespaces/hts/DESIGN_REVIEW.md"
-    )
+    return bool(path.parts) and path.parts[0] == "docs"
 
 
 def _check_metadata(payload: bytes, version: str, label: str) -> None:

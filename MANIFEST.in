@@ -4,7 +4,5 @@ include jorel
 include scripts/check_release.py scripts/smoke_install.py
 include scripts/generate_function_docs.py
 include CHANGELOG.md
-recursive-include user-guide *.md *.json
 prune docs
-exclude jarvis_operas/namespaces/hts/DESIGN_REVIEW.md
 include examples/unit_contract_demo.py examples/unit_contract_ops.py
