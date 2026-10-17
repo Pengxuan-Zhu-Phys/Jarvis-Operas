@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Print the official `Jarvis-Operas` name with `-v` / `--version`, including
+  through `Jarvis operas`; support structured version output with `--json`.
+
 ## 1.5.1 — 2026-10-18
 
 - Exclude maintainer release helpers, local configuration, credentials, and

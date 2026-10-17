@@ -1127,8 +1127,8 @@ def build_parser() -> argparse.ArgumentParser:
         "-v",
         "--version",
         action="version",
-        version=f"%(prog)s {_resolve_version()}",
-        help="Show jopera version and exit.",
+        version=f"Jarvis-Operas {_resolve_version()}",
+        help="Show the Jarvis-Operas version and exit.",
     )
     parser.add_argument(
         "--help-advanced",
@@ -1305,6 +1305,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
+    if ("--json" in raw_argv and {"-v", "--version"}.intersection(raw_argv)
+            and set(raw_argv) <= {"-v", "--version", "--json"}):
+        print(json.dumps({"ok": True, "command": "version", "name": "Jarvis-Operas",
+                          "version": _resolve_version()}, indent=2))
+        return 0
     force_debug = False
     parse_argv: list[str] = []
     for token in raw_argv:

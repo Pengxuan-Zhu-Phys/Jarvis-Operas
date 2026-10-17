@@ -237,7 +237,16 @@ def test_cli_version_short_flag() -> None:
     result = _run_cli("-v")
 
     assert result.returncode == 0, result.stderr
-    assert re.match(r"^jopera\s+\S+\s*$", result.stdout)
+    assert re.match(r"^Jarvis-Operas\s+\S+\s*$", result.stdout)
+
+
+def test_cli_version_json(capsys) -> None:
+    for tokens in (["-v", "--json"], ["--json", "--version"]):
+        assert cli_mod.main(tokens) == 0
+        assert json.loads(capsys.readouterr().out) == {
+            "ok": True, "command": "version", "name": "Jarvis-Operas",
+            "version": cli_mod._resolve_version(),
+        }
 
 
 def test_cli_not_found_shows_suggestion() -> None:
