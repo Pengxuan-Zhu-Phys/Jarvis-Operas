@@ -413,26 +413,23 @@ registry.info("stat.chi2_cov")
 
 ## Releases
 
-Version `1.5.0` is already published. For a new release, add its version heading
-and changes to `CHANGELOG.md`, then build, verify, and publish to PyPI. These
-commands use `1.5.1` only as an example of a new version:
+`jorel` is a maintainer-local script, excluded from Git and distribution archives.
+
+Record the release changes under `Unreleased` in `CHANGELOG.md`. Use the next
+version number (shown here as `1.5.1`):
 
 ```bash
-source ./jorel
-jorel 1.5.1
+./jorel 1.5.1 --dry
+./jorel 1.5.1
 ```
 
-`jorel` bumps `pyproject.toml`, runs the release gate and the full test suite,
-builds and checks the wheel/sdist, and uploads them to PyPI. It then
-reinstalls that version from PyPI and checks the import. Configure Twine
-credentials before running it. An already published version cannot be uploaded
-again with replacement files.
-
-To build and check without publishing, add `--dry`, the only option:
-
-```bash
-jorel 1.5.1 --dry
-```
+`--dry` performs read-only source and release-note checks. The normal command
+requires a clean Git checkout, builds and checks the wheel and sdist, runs the
+release tests, uploads to PyPI, refreshes this checkout with
+`python3 -m pip install -e .`, and verifies the installed version. Only then
+does it commit the version, push the `vX.Y.Z` tag, and create a GitHub release
+from the changelog. Configure Twine and `gh` authentication before publishing.
+PyPI versions cannot be overwritten.
 
 Release changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 

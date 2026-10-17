@@ -1,8 +1,32 @@
 recursive-include jarvis_operas/manifests *.json
 recursive-include jarvis_operas/models *.pkl *.md *.txt
-include jorel
 include scripts/check_release.py scripts/smoke_install.py
 include scripts/generate_function_docs.py
 include CHANGELOG.md
 prune docs
 include examples/unit_contract_demo.py examples/unit_contract_ops.py
+
+# Git ignores do not control source distributions.
+exclude jorel
+prune .github
+prune .claude
+prune .codex
+prune .agents
+prune .cursor
+prune .idea
+prune .vscode
+prune .aws
+prune .ssh
+prune .twine
+prune .pypi
+prune .venv
+prune venv
+prune env
+prune .cache
+prune .pytest_cache
+prune .ruff_cache
+prune .mypy_cache
+prune .tox
+prune .nox
+prune .ipynb_checkpoints
+global-exclude .DS_Store *.py[cod] .env .env.* .envrc .pypirc .pypirc.* .twinerc .pypi-token* .mcp.json release.env twine.env *.code-workspace *.swp *.swo *~ *.bak *.tmp

@@ -199,7 +199,8 @@ cython_debug/
 .pypirc.*
 
 # Private PyPI release workflow (local only)
-# The release helper contains no credentials and is maintained in Git.
+# The maintainer's release script stays local.
+/jorel
 .twine/
 .twinerc
 twine.env
@@ -226,3 +227,35 @@ __marimo__/
 # Documentation lives in Jarvis-Books/Docs; a local docs/ (for example generated
 # function pages) is never committed.
 /docs/
+
+# Local credentials and environment overrides
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+.pypi-token*
+/.aws/
+/.ssh/
+
+# Machine-local editor and assistant configuration
+/.claude/
+/.codex/
+/.agents/
+/.cursor/
+/.mcp.json
+.idea/
+.vscode/
+*.code-workspace
+
+# Local caches, reports, and temporary files
+.cache/
+.ipynb_checkpoints/
+*.dist-info/
+*.swp
+*.swo
+*~
+*.bak
+*.tmp
+
+# Local workflow copies
+/github.ci/

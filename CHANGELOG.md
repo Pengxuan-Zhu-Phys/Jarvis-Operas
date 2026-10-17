@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.5.1 — 2026-10-18
 
+- Exclude maintainer release helpers, local configuration, credentials, and
+  generated files from distribution archives.
+
+- `./jorel X.Y.Z` now completes PyPI upload, local editable install, Git tag,
+  and GitHub release. `--dry` checks inputs without changing the checkout.
 - Move all documentation, including the user guide, the unit contract JSON
   Schema and the HTs notes, to [Jarvis-Books](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/README.md). The repository
   and the source distribution keep only `README.md` and `CHANGELOG.md` as
