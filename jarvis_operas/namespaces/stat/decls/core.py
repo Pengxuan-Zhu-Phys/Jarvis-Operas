@@ -17,7 +17,7 @@ STAT_CORE_DECLARATIONS: tuple[OperaFunction, ...] = (
             "summary": "Compute chi-square using residual vector(s) and covariance matrix.",
             "params": {
                 "residual": "Residual vector or matrix (samples x observables).",
-                "cov": "Covariance matrix.",
+                "cov": "Covariance matrix; DataFrame axes align to named residual columns or struct fields.",
             },
             "return": "Chi-square scalar (single sample) or vector (multiple samples).",
             "unit_contract": {
@@ -30,7 +30,11 @@ STAT_CORE_DECLARATIONS: tuple[OperaFunction, ...] = (
             "note": (
                 "The chi-square result is dimensionless. Residual and covariance units depend "
                 "on the observables; covariance must carry the products of their units. "
-                "Version 1.0 has no fixed input contract or covariance unit inference."
+                "Version 1.0 has no fixed input contract or covariance unit inference. "
+                "Both backends align a pandas covariance DataFrame by axis labels when residuals "
+                "are a pandas DataFrame or a Polars struct. Labels must be unique and each residual "
+                "name must exist on both covariance axes; unused covariance labels are allowed. "
+                "Inputs without names use positional order."
             ),
             "backend_support": {
                 "numpy": "native",

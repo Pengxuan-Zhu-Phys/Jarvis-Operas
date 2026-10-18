@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Align labelled covariance matrices with residual names in both NumPy/pandas
+  and Polars `stat.chi2_cov` calls. Reject missing or duplicate labels, including
+  on empty batches, and preserve positional semantics for unnamed inputs.
 - Print the official `Jarvis-Operas` name with `-v` / `--version`, including
   through `Jarvis operas`; support structured version output with `--json`.
 

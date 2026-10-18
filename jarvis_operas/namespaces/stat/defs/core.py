@@ -27,16 +27,23 @@ def chi2_cov_polars_expr(residual, cov, **_params):
     except ImportError as exc:
         raise RuntimeError("polars is required for stat.chi2_cov polars backend") from exc
 
+    # Keep labels (and snapshot the values) until the struct schema is known.
+    if isinstance(cov, pd.DataFrame):
+        cov = cov.astype(float)
     cov_mat = _cov_to_numpy(cov)
     if cov_mat.ndim != 2 or cov_mat.shape[0] != cov_mat.shape[1]:
         raise ValueError("cov must be a square matrix")
-    expected_dim = int(cov_mat.shape[0])
 
     def _udf(batch: Any):
-        residual_mat = _batch_to_residual_matrix(batch, expected_dim=expected_dim)
+        batch_cov = cov_mat
+        if isinstance(cov, pd.DataFrame) and isinstance(batch.dtype, pl.Struct):
+            # Use schema names so alignment and validation also work on empty batches.
+            columns = [field.name for field in batch.dtype.fields]
+            batch_cov = _named_cov_to_numpy(cov, columns)
+        residual_mat = _batch_to_residual_matrix(batch, expected_dim=int(batch_cov.shape[0]))
         if residual_mat.shape[0] == 0:
             return pl.Series([], dtype=pl.Float64)
-        solutions = linalg.solve(cov_mat, residual_mat.T, assume_a="sym")
+        solutions = linalg.solve(batch_cov, residual_mat.T, assume_a="sym")
         chi2_vals = np.einsum("nd,dn->n", residual_mat, solutions)
         return pl.Series(chi2_vals, dtype=pl.Float64)
 
@@ -75,18 +82,7 @@ def _chi2_cov_dataframe(residual: pd.DataFrame, cov):
         raise ValueError("residual dataframe must have at least one column")
 
     if isinstance(cov, pd.DataFrame):
-        cov_df = cov.astype(float)
-        if cov_df.shape[0] != cov_df.shape[1]:
-            raise ValueError("cov must be a square matrix")
-
-        residual_cols = list(residual_df.columns)
-        missing = [col for col in residual_cols if col not in cov_df.index or col not in cov_df.columns]
-        if missing:
-            raise ValueError(
-                "cov dataframe must contain residual columns on both index and columns: "
-                + ", ".join(map(str, missing))
-            )
-        cov_mat = cov_df.loc[residual_cols, residual_cols].to_numpy(dtype=float)
+        cov_mat = _named_cov_to_numpy(cov.astype(float), list(residual_df.columns))
     else:
         cov_mat = _cov_to_numpy(cov)
         if cov_mat.shape[0] != residual_df.shape[1]:
@@ -96,6 +92,25 @@ def _chi2_cov_dataframe(residual: pd.DataFrame, cov):
     solutions = linalg.solve(cov_mat, residual_mat.T, assume_a="sym")
     chi2_vals = np.einsum("nd,dn->n", residual_mat, solutions)
     return pd.Series(chi2_vals, index=residual_df.index, name="chi2")
+
+
+def _named_cov_to_numpy(cov: pd.DataFrame, columns: list[Any]) -> np.ndarray:
+    """Align both covariance axes to named residuals on either backend."""
+    if cov.shape[0] != cov.shape[1]:
+        raise ValueError("cov must be a square matrix")
+    if not columns:
+        raise ValueError("residual must have at least one column")
+    if not pd.Index(columns).is_unique:
+        raise ValueError("residual columns must be unique")
+    if not cov.index.is_unique or not cov.columns.is_unique:
+        raise ValueError("cov dataframe index and columns must be unique")
+    missing = [col for col in columns if col not in cov.index or col not in cov.columns]
+    if missing:
+        raise ValueError(
+            "cov dataframe must contain residual columns on both index and columns: "
+            + ", ".join(map(str, missing))
+        )
+    return cov.loc[columns, columns].to_numpy(dtype=float)
 
 
 def _cov_to_numpy(cov) -> np.ndarray:
