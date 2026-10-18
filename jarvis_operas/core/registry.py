@@ -5,8 +5,9 @@ import copy
 import hashlib
 import inspect
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from concurrent.futures import Executor
+from contextlib import contextmanager
 from functools import partial
 from threading import RLock
 from typing import Any
@@ -189,6 +190,43 @@ class OperasRegistry:
             self.register(declaration, replace=replace, logger=logger)
             registered.append(declaration.full_name)
         return sorted(registered)
+
+    @contextmanager
+    def _staged_update(self, *, on_commit: Callable[[], None]) -> Iterator[OperasRegistry]:
+        """Stage declarations privately; publish only against an unchanged registry."""
+        with self._lock:
+            before_functions = dict(self._functions)
+            before_ids = dict(self._id_to_name)
+            before_names = dict(self._name_to_id)
+            staged = OperasRegistry(
+                logger=self._logger, log_mode=self._log_mode,
+                executor=self._executor, numpy_concurrency=self._numpy_concurrency,
+            )
+            staged._functions = dict(before_functions)
+            staged._id_to_name = dict(before_ids)
+            staged._name_to_id = dict(before_names)
+
+        # User module execution can be slow; readers keep using the old registry.
+        yield staged
+
+        with self._lock:
+            if (
+                self._functions.keys() != before_functions.keys()
+                or any(self._functions[name] is not decl for name, decl in before_functions.items())
+                or self._id_to_name != before_ids
+                or self._name_to_id != before_names
+            ):
+                raise RuntimeError("registry changed during operator load; retry the load")
+            replacement = (
+                dict(staged._functions), dict(staged._id_to_name), dict(staged._name_to_id),
+            )
+            previous = self._functions, self._id_to_name, self._name_to_id
+            try:
+                self._functions, self._id_to_name, self._name_to_id = replacement
+                on_commit()
+            except BaseException:
+                self._functions, self._id_to_name, self._name_to_id = previous
+                raise
 
     def resolve_name(self, identifier: str) -> str:
         normalized = identifier.strip()

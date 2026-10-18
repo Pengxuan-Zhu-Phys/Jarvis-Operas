@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Make each user operator file load transactional: publish all declarations
+  together after validation, or retain the previous functions, IDs, and SymPy
+  views on failure. Reject commits when the registry changes during loading,
+  and remove failed modules from the import cache.
 - Align labelled covariance matrices with residual names in both NumPy/pandas
   and Polars `stat.chi2_cov` calls. Reject missing or duplicate labels, including
   on empty batches, and preserve positional semantics for unnamed inputs.

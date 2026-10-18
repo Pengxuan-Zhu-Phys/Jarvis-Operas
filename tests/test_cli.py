@@ -523,6 +523,35 @@ def test_cli_load_reloads_persisted_source_with_updated_definition(tmp_path) -> 
     assert third.stdout.strip() == "12"
 
 
+def test_cli_failed_reload_keeps_persisted_source_and_previous_behavior(tmp_path) -> None:
+    op_file = tmp_path / "atomic_cli_ops.py"
+    op_file.write_text(
+        'from jarvis_operas import oper\n@oper("value")\ndef value(): return 1\n',
+        encoding="utf-8",
+    )
+    storage = tmp_path / "storage"
+    env = {
+        "JARVIS_OPERAS_PERSIST_FILE": str(storage / "legacy.json"),
+        "JARVIS_OPERAS_SOURCES_FILE": str(storage / "sources.json"),
+        "JARVIS_OPERAS_OVERRIDES_FILE": str(storage / "overrides.json"),
+        "JARVIS_OPERAS_USER_SOURCE_DIR": str(storage / "snapshots"),
+    }
+    first = _run_cli("load", str(op_file), env=env)
+    assert first.returncode == 0, first.stderr
+    before = {p.relative_to(storage): p.read_bytes() for p in storage.rglob("*") if p.is_file()}
+    op_file.write_text(
+        'from jarvis_operas import oper\n@oper("value")\ndef value(): return 99\n'
+        'raise RuntimeError("broken update")\n', encoding="utf-8",
+    )
+    failed = _run_cli("load", str(op_file), env=env)
+    assert failed.returncode != 0
+    assert "Failed to load operators" in failed.stdout + failed.stderr
+    assert before == {p.relative_to(storage): p.read_bytes() for p in storage.rglob("*") if p.is_file()}
+    result = _run_cli("call", "atomic_cli_ops.value", env=env)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "1"
+
+
 def test_cli_load_session_only_does_not_persist(tmp_path) -> None:
     op_file = tmp_path / "ephemeral_cli_ops.py"
     op_file.write_text(

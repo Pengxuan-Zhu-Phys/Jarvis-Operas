@@ -25,7 +25,7 @@ def load_user_ops(
     refresh_sympy: bool = True,
     logger: Any | None = None,
 ) -> list[str]:
-    """Load user operators from a Python file via decorator or __JARVIS_OPERAS__."""
+    """Load one file's declarations as a transaction, preserving state on failure."""
 
     local_logger = get_logger(logger, action="load_user_ops")
     module_path = Path(path).expanduser().resolve()
@@ -36,25 +36,53 @@ def load_user_ops(
             f"User operator file does not exist: {module_path}",
         )
 
+    module_name: str | None = None
+    committed = False
+
+    def finish_load() -> None:
+        # The registry holds its commit lock here. Preserve shared dictionary
+        # identities so callers that imported the SymPy views keep valid references.
+        integration = None
+        if refresh_sympy:
+            from .api import is_global_operas_registry
+
+            if is_global_operas_registry(registry):
+                from . import integration
+
+        if integration is not None:
+            previous_locals = dict(integration.func_locals)
+            previous_numeric = dict(integration.numeric_funcs)
+        try:
+            if integration is not None:
+                integration.refresh_sympy_dicts_if_global_registry(registry)
+            local_logger.info("loaded {} operators from {}", len(loaded_sorted), str(module_path))
+        except BaseException:
+            if integration is not None:
+                integration.func_locals.clear()
+                integration.func_locals.update(previous_locals)
+                integration.numeric_funcs.clear()
+                integration.numeric_funcs.update(previous_numeric)
+            raise
+
     try:
         target_namespace = ensure_user_namespace_allowed(
             namespace or namespace_from_source_path(module_path),
             action="user operator loading",
         )
-        before_ops = set(registry.list())
-        loaded_during_exec: list[str] = []
-        module_name = _build_module_name(module_path)
+        with registry._staged_update(on_commit=finish_load) as staged:
+            before_ops = set(staged.list())
+            loaded_during_exec: list[str] = []
+            module_name = _build_module_name(module_path)
 
-        spec = importlib.util.spec_from_file_location(module_name, module_path)
-        if spec is None or spec.loader is None:
-            raise RuntimeError(f"Cannot create import spec for {module_path}")
+            spec = importlib.util.spec_from_file_location(module_name, module_path)
+            if spec is None or spec.loader is None:
+                raise RuntimeError(f"Cannot create import spec for {module_path}")
 
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = module
-        try:
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
             source_code = compile(module_path.read_bytes(), str(module_path), "exec")
             with use_registry(
-                registry,
+                staged,
                 default_namespace=target_namespace,
                 replace_existing_names=before_ops,
                 metadata_override={
@@ -64,50 +92,43 @@ def load_user_ops(
                 loaded_names=loaded_during_exec,
             ):
                 exec(source_code, module.__dict__)
-        except Exception:
-            sys.modules.pop(module_name, None)
-            raise
+            loaded = list(loaded_during_exec)
+            loaded.extend(list(set(staged.list()) - before_ops))
 
-        loaded = list(loaded_during_exec)
-        loaded.extend(list(set(registry.list()) - before_ops))
+            export_map = getattr(module, "__JARVIS_OPERAS__", None)
+            if export_map is not None:
+                if not isinstance(export_map, Mapping):
+                    raise TypeError("__JARVIS_OPERAS__ must be a mapping of name -> callable")
 
-        export_map = getattr(module, "__JARVIS_OPERAS__", None)
-        if export_map is not None:
-            if not isinstance(export_map, Mapping):
-                raise TypeError("__JARVIS_OPERAS__ must be a mapping of name -> callable")
+                for op_name, fn in export_map.items():
+                    loaded_name = _register_user_target(
+                        registry=staged,
+                        namespace=target_namespace,
+                        name=str(op_name),
+                        target=fn,
+                        metadata={"source": "__JARVIS_OPERAS__", "path": str(module_path)},
+                        replace_existing_names=before_ops,
+                    )
+                    loaded.append(loaded_name)
 
-            for op_name, fn in export_map.items():
-                loaded_name = _register_user_target(
-                    registry=registry,
-                    namespace=target_namespace,
-                    name=str(op_name),
-                    target=fn,
-                    metadata={"source": "__JARVIS_OPERAS__", "path": str(module_path)},
-                    replace_existing_names=before_ops,
+            if not loaded:
+                raise RuntimeError(
+                    "No operators were loaded. Use @oper(...) or define __JARVIS_OPERAS__."
                 )
-                loaded.append(loaded_name)
 
-        if not loaded:
-            raise RuntimeError(
-                "No operators were loaded. Use @oper(...) or define __JARVIS_OPERAS__."
-            )
+            loaded_sorted = sorted(set(loaded))
 
-        loaded_sorted = sorted(set(loaded))
-        if refresh_sympy:
-            from .integration import refresh_sympy_dicts_if_global_registry
-
-            refresh_sympy_dicts_if_global_registry(registry)
-        local_logger.info(
-            "loaded {} operators from {}",
-            len(loaded_sorted),
-            str(module_path),
-        )
+        committed = True
         return loaded_sorted
     except Exception as exc:
         raise OperatorLoadError(
             str(module_path),
-            f"Failed to load operators from '{module_path}': {exc}",
+            f"Failed to load operators from '{module_path}': {exc}. "
+            "No operators from this load were committed.",
         ) from exc
+    finally:
+        if not committed and module_name is not None:
+            sys.modules.pop(module_name, None)
 
 
 def discover_entrypoints(
