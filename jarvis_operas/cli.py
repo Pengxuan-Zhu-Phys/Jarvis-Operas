@@ -526,11 +526,13 @@ def _print_list_human(entries: list[dict[str, Any]], namespace_filter: str | Non
             border_style="dim",
             padding=(0, 1),
         )
+        table.add_column("ID", style="dim", width=6, no_wrap=True)
         table.add_column("NAME", style="bold #d7b8ff", width=_LIST_NAME_COLUMN_WIDTH, overflow="fold")
-        table.add_column("CATEGORY", style="dim", width=_LIST_CATEGORY_COLUMN_WIDTH, overflow="fold")
+        table.add_column("CATEGORY", style="dim", width=max(8, _LIST_CATEGORY_COLUMN_WIDTH - 9), overflow="fold")
         table.add_column("SUMMARY", ratio=1, overflow="fold")
         for item in namespace_entries:
             table.add_row(
+                str(item["id"]),
                 str(item["name"]),
                 str(item.get("category") or namespace or "-"),
                 _render_summary_display(str(item.get("summary") or "-")),
@@ -544,11 +546,6 @@ def _print_list_human(entries: list[dict[str, Any]], namespace_filter: str | Non
                 box=box.ROUNDED,
             )
         )
-    if not sys.stdout.isatty():
-        # Preserve the tab-delimited marker used by older non-interactive
-        # consumers; interactive output stays entirely card-based.
-        print("\t", end="")
-        print("\n".join(f"{item['id']}\t{item['name']}" for item in entries))
 
 
 def _print_interp_list_human(
@@ -671,7 +668,7 @@ def _is_constant_info(info: Mapping[str, Any] | dict[str, Any]) -> bool:
 
 def _print_info_human(info: dict[str, Any]) -> None:
     metadata = info.get("metadata", {})
-    supports_async = bool(info.get("supports_async", info.get("is_async")))
+    is_async = bool(info.get("is_async", False))
     note = metadata.get("note") if isinstance(metadata, dict) else None
     category = metadata.get("category")
     description = _format_operator_summary(info)
@@ -692,7 +689,7 @@ def _print_info_human(info: dict[str, Any]) -> None:
             table.add_row("SOURCE", str(metadata.get("source")))
     else:
         table.add_row("SIGNATURE", str(info.get("signature", "")))
-        table.add_row("ASYNC", str(supports_async).lower())
+        table.add_row("ASYNC", str(is_async).lower())
     console = _console()
     console.print(Panel(table, title="Operator metadata", title_align="left", border_style="#9b7dcc", box=box.ROUNDED))
     contract = metadata.get("unit_contract") if isinstance(metadata, dict) else None

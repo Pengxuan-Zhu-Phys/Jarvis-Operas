@@ -416,11 +416,11 @@ registry.info("stat.chi2_cov")
 `jorel` is a maintainer-local script, excluded from Git and distribution archives.
 
 Record the release changes under `Unreleased` in `CHANGELOG.md`. Use the next
-version number (shown here as `1.5.1`):
+version number (shown here as `1.5.2`):
 
 ```bash
-./jorel 1.5.1 --dry
-./jorel 1.5.1
+./jorel 1.5.2 --dry
+./jorel 1.5.2
 ```
 
 `--dry` performs read-only source and release-note checks. The normal command

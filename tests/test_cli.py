@@ -73,7 +73,7 @@ def test_cli_list_human_output_groups_namespace() -> None:
     assert result.returncode == 0, result.stderr
     assert "math (" in result.stdout
     assert "math.add" in result.stdout
-    assert "\t" in result.stdout
+    assert result.stdout.count("math.add") == 1
     assert re.search(r"\b[a-z][0-9]{3,5}\b", result.stdout)
 
 
@@ -115,7 +115,8 @@ def test_cli_list_cards_fold_long_values_without_ellipsis(capsys) -> None:
 
     assert "…" not in output
     assert "very_long_namespace" in output
-    assert "operator_with_a_long_name" in output
+    assert "very_long_namespace.operator" in output
+    assert "_with_a_long_name" in output
 
 
 def test_cli_list_cards_separate_records_with_dim_lines(capsys) -> None:
@@ -866,3 +867,26 @@ def test_cli_dangerous_help_preserves_rich_renderable() -> None:
     result = _run_cli("init", "-h")
     assert "--force" in result.stdout
     assert "Force recompilation" in result.stdout
+
+
+def test_info_async_reports_implementation_not_acall_support(capsys):
+    cli_mod._print_info_human({"name": "math.add", "is_async": False,
+                              "supports_async": True, "metadata": {}})
+    output = capsys.readouterr().out
+    assert re.search(r"ASYNC\s+false", output)
+
+
+def test_cli_reload_omits_deleted_source_function_in_fresh_process(tmp_path):
+    source = tmp_path / "review_reload.py"
+    source.write_text("def keep(): return 1\ndef dropped(): return 2\n"
+                      "__JARVIS_OPERAS__ = {'keep': keep, 'dropped': dropped}\n")
+    env = {"JARVIS_OPERAS_PERSIST_FILE": str(tmp_path / "registry.json")}
+    first = _run_cli("load", str(source), env=env)
+    assert first.returncode == 0, first.stderr
+    source.write_text("def keep(): return 3\n__JARVIS_OPERAS__ = {'keep': keep}\n")
+    second = _run_cli("load", str(source), env=env)
+    assert second.returncode == 0, second.stderr
+    present = _run_cli("call", "review_reload.keep", env=env)
+    assert present.returncode == 0 and present.stdout.strip() == "3"
+    missing = _run_cli("info", "review_reload.dropped", "--json", env=env)
+    assert missing.returncode != 0

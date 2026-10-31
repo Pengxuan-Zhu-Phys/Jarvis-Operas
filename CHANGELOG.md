@@ -3,10 +3,13 @@
 Release history of `Jarvis-Operas` (CLI `jopera`). User guides and API reference
 are available in [Jarvis-Books](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/README.md).
 
-## Unreleased
+## 1.5.2
 
 ### Fixed
 
+- Report whether an operator implementation is asynchronous in the human info
+  card, independently of its support for asynchronous invocation.
+- Print each operator list once when stdout is redirected.
 - Load or reload a user operator file as one complete update. If loading or
   validation fails, the previously registered operators remain available;
   partially loaded definitions are not exposed. Conflicting concurrent
