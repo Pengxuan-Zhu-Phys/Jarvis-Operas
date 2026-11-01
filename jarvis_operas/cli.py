@@ -1302,6 +1302,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
+    if "-V" in raw_argv and set(raw_argv) <= {"-v", "-V", "--version", "--json"}:
+        raw_argv = ["-v" if arg == "-V" else arg for arg in raw_argv]
     if ("--json" in raw_argv and {"-v", "--version"}.intersection(raw_argv)
             and set(raw_argv) <= {"-v", "--version", "--json"}):
         print(json.dumps({"ok": True, "command": "version", "name": "Jarvis-Operas",
