@@ -15,6 +15,7 @@ import zipfile
 
 DISTRIBUTION = "Jarvis-Operas"
 PACKAGE = "jarvis_operas"
+RUNTIME_PACKAGES = (PACKAGE, "joperas")
 ENTRY_POINT = "jarvis_operas.cli:main"
 VERSION_PATTERN = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
 
@@ -81,8 +82,10 @@ def check_source(root: Path, expected_version: str | None = None) -> str:
 
 def _runtime_file(name: str) -> bool:
     path = PurePosixPath(name)
-    if not path.parts or path.parts[0] != PACKAGE:
+    if not path.parts or path.parts[0] not in RUNTIME_PACKAGES:
         return False
+    if path.parts[0] == "joperas":
+        return path.suffix == ".py"
     return (
         path.suffix == ".py"
         or (len(path.parts) > 1 and path.parts[1] == "manifests" and path.suffix == ".json")
@@ -95,12 +98,20 @@ def expected_runtime_files(root: Path) -> dict[str, bytes]:
     root = Path(root).resolve()
     if (root / ".git").exists():
         process = subprocess.run(
-            ["git", "-C", str(root), "ls-files", "-z", "--", PACKAGE],
+            ["git", "-C", str(root), "ls-files", "-z", "--", *RUNTIME_PACKAGES],
             check=True, capture_output=True, timeout=30,
         )
         names = [name.decode("utf-8") for name in process.stdout.split(b"\0") if name]
     else:
-        names = [path.relative_to(root).as_posix() for path in (root / PACKAGE).rglob("*") if path.is_file()]
+        names = []
+        for package in RUNTIME_PACKAGES:
+            package_root = root / package
+            if package_root.is_dir():
+                names.extend(
+                    path.relative_to(root).as_posix()
+                    for path in package_root.rglob("*")
+                    if path.is_file()
+                )
     expected = {name: (root / name).read_bytes() for name in names if _runtime_file(name)}
     if f"{PACKAGE}/__init__.py" not in expected:
         raise ValueError("Source package is missing jarvis_operas/__init__.py")
@@ -158,7 +169,8 @@ def check_wheel(root: Path, wheel: Path, version: str) -> dict[str, object]:
         if len(metadata_paths) != 1:
             raise ValueError("Wheel must contain one distribution metadata file")
         prefix = metadata_paths[0].rsplit("/", 1)[0]
-        if any(PurePosixPath(name).parts[0] not in {PACKAGE, prefix} for name in names):
+        allowed_roots = set(RUNTIME_PACKAGES) | {prefix}
+        if any(PurePosixPath(name).parts[0] not in allowed_roots for name in names):
             raise ValueError("Wheel contains unrelated packages or top-level files")
         files = {name: archive.read(name) for name in names}
         _check_metadata(files[metadata_paths[0]], version, "Wheel")
@@ -210,8 +222,9 @@ def check_sdist(root: Path, sdist: Path, version: str) -> dict[str, object]:
                 raise ValueError(f"Sdist has missing or stale public documentation: {name}")
         _check_runtime(expected, files, "Sdist")
         # Tests/scripts may be Python source, but another importable package is not ours.
+        allowed_packages = set(RUNTIME_PACKAGES) | {"tests", "scripts"}
         other_packages = [name for name in files if name.endswith("/__init__.py")
-                          and PurePosixPath(name).parts[0] not in {PACKAGE, "tests", "scripts"}]
+                          and PurePosixPath(name).parts[0] not in allowed_packages]
         if other_packages:
             raise ValueError(f"Sdist contains unrelated package: {other_packages[0]}")
     return {"sdist": str(sdist), "sdist_runtime_files": len(expected)}

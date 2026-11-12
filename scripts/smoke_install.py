@@ -9,8 +9,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import copy
+import importlib
 import importlib.metadata as metadata
 import json
+import keyword
 import math
 import os
 from pathlib import Path
@@ -89,6 +91,26 @@ def _verify_install(expected: str, base: Path) -> dict[str, object]:
             assert math.isfinite(canonical) and canonical > 0, name
             assert math.isclose(result.canonical_result, canonical, rel_tol=1e-12), name
             assert math.isclose(result.values[""], canonical * 1e36, rel_tol=1e-12), name
+
+    import joperas
+
+    for full_name in registry.list():
+        namespace, short_name = full_name.split(".", 1)
+        module = importlib.import_module(f"joperas.{namespace}")
+        function = getattr(module, short_name)
+        assert function.full_name == full_name, full_name
+        if short_name.isidentifier() and not keyword.iskeyword(short_name):
+            assert short_name in module.__all__, full_name
+    from joperas.math import add as imported_add
+    from joperas.pdg import mZ as imported_mZ
+    from joperas.dmddxn import LZSI2024
+
+    assert imported_add(a=1.0, b=2.0) == 3.0
+    assert imported_mZ() == registry.call("pdg.mZ")
+    curve = registry.get("dmddxn.LZSI2024")
+    sample_x = math.sqrt(curve.metadata["x_min"] * curve.metadata["x_max"])
+    assert math.isclose(float(LZSI2024(sample_x)), float(registry.call("dmddxn.LZSI2024", sample_x)))
+    assert {"math", "dmddxn", "dmddxe"}.issubset(set(dir(joperas)))
 
     fixture_registry = OperasRegistry(numpy_concurrency=2)
     calls = []
@@ -170,7 +192,8 @@ def _verify_install(expected: str, base: Path) -> dict[str, object]:
     return {"version": expected, "installed_smoke": "passed", "package_path": str(package_path),
             "physical_unit_contracts": 64, "curve_counts": curve_counts,
             "checks": ["installed CLI", "math/stat/helpers/PDG", "bundled CMB model and likelihood",
-                       "47 packaged curve contracts", "public sync/async/batch unit API",
+                       "47 packaged curve contracts", "joperas namespace imports",
+                       "public sync/async/batch unit API",
                        "strict/conflict/dimension rejection before execution", "canonical record protection"]}
 
 

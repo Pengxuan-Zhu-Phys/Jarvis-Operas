@@ -27,7 +27,7 @@ jopera = "jarvis_operas.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["jarvis_operas*"]
+include = ["jarvis_operas*", "joperas*"]
 
 [tool.setuptools.package-data]
 jarvis_operas = [

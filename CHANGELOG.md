@@ -3,6 +3,31 @@
 Release history of `Jarvis-Operas` (CLI `jopera`). User guides and API reference
 are available in [Jarvis-Books](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/README.md).
 
+## Unreleased
+
+### Added
+
+- Import any registered operator in a Python script. The namespace and function
+  name are the same ones accepted by `registry.call` and `jopera call`:
+
+  ```python
+  from joperas.math import add
+  from joperas.pdg import mZ
+  from joperas.dmddxn import LZSI2024
+  from joperas.dmddxe import CDEXLM2022
+
+  add(1, 2)
+  mZ()
+  LZSI2024(30.0)
+  ```
+
+  This covers built-in operators, interpolation curves, and user operators
+  already loaded into the global registry. A call uses the same dispatch as
+  `registry.call`, including canonical unit handling. Constants are
+  zero-argument calls. An unknown namespace names the closest registered
+  namespaces, so `joperas.dmdd` points at `dmddxn` (DM-nucleon) and `dmddxe`
+  (DM-electron).
+
 ## 1.5.2
 
 ### Fixed

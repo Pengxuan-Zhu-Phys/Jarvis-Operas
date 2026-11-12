@@ -112,6 +112,27 @@ operas = get_global_operas()
 operas.call("math.add", a=1, b=2)
 ```
 
+Import the same operators directly in a script. The module path is
+`joperas.<namespace>`, and the imported name is the operator's short name:
+
+```python
+from joperas.math import add
+from joperas.pdg import mZ
+from joperas.dmddxn import LZSI2024
+from joperas.dmddxe import CDEXLM2022
+
+add(1, 2)          # 3
+mZ()               # 91.1876 GeV
+LZSI2024(30.0)     # DM-nucleon curve, x in GeV, result in cm^2
+```
+
+`mZ()` is a zero-argument call because PDG constants are registered operators.
+DM-nucleon curves live in `dmddxn` and DM-electron curves live in `dmddxe`.
+Every name returned by `registry.list()` can be imported this way, including a
+user operator after it is loaded into the global registry. Calling the imported
+object uses `registry.call`, so canonical unit handling stays in effect. Pass
+`backend="polars"` to select the Polars backend.
+
 Supported namespace convention:
 
 - Built-ins use feature namespaces, e.g.:

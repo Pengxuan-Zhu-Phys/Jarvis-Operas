@@ -24,6 +24,7 @@ from scripts.check_release import (
 VERSION = "1.5.0"
 RESOURCES = {
     "jarvis_operas/__init__.py": b"# Package fixture\n",
+    "joperas/__init__.py": b"# Import facade fixture\n",
     "jarvis_operas/core/registry.py": b"# Native module fixture\n",
     "jarvis_operas/manifests/dmddxn/curve.json": b'{"unit":"cm^2"}\n',
     "jarvis_operas/models/cmb/planck/data/TT_power_spec.txt": b"2 100\n",
