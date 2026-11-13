@@ -3,8 +3,7 @@
 Release history of `Jarvis-Operas` (CLI `jopera`). User guides and API reference
 are available in [Jarvis-Books](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/README.md).
 
-## Unreleased
-
+## 1.6.0 — 2026-11-14
 ### Fixed
 
 - Accept `-V` as an alias of `-v` / `--version`.
