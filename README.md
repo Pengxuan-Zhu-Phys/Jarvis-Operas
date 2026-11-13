@@ -137,9 +137,9 @@ The imported object is the
 NumPy implementation. When the operator declares a unit contract, the call
 normalizes inputs to canonical units. A name that is already bound keeps that
 function; import it again after a registry replacement to see the new one.
-`registry.call(..., backend="polars")` remains the Polars path. An operator
-parameter that is itself named `backend` (for example a HiggsTools backend
-object) is passed through on both the imported function and `registry.call`.
+`registry.call(..., backend="polars")` remains the Polars path. A non-string
+`backend` keyword is passed through to the operator on both the imported
+function and `registry.call`.
 
 Supported namespace convention:
 
@@ -228,8 +228,7 @@ registry = get_global_operas_registry()  # auto-loads persisted sources
 Persistence store location:
 
 - Jarvis home is `~/.jarvis` (`JARVIS_HOME`). Operas state lives in `operas/`
-  (`JARVIS_OPERAS_HOME`). A previous `~/.jarvis-operas/` directory is moved on
-  first use; files already in the new directory stay where they are.
+  (`JARVIS_OPERAS_HOME`). `~/.jarvis-operas/` is not used.
 - Default sources registry: `~/.jarvis/operas/sources.json`
 - Default override rules: `~/.jarvis/operas/overrides.json`
 - Legacy base env (still supported): `JARVIS_OPERAS_PERSIST_FILE=/custom/path/persist_store.json`
@@ -324,9 +323,10 @@ Use this flow when you have many 1D interpolation curves and want runtime speed:
    - per-function JSON source (`x`/`y` arrays)
 2. Precompile once: `jopera init` (bundled library) or `jopera init --manifest ./manifest.json` (custom)
    - optional: `jopera init --namespaces dmddxn,interp1` for partial namespace processing
+   - an init updates the namespaces in that manifest and leaves every other namespace already stored in the same cache. Startup initialization of the bundled library does this too, so a custom manifest compiled into the default cache remains available
    - inspect manifests with `jopera interp list` and `jopera interp validate`
 3. Runtime auto-registration: `get_global_operas_registry()` initializes the bundled cache and registers hot curves in their resolved namespaces, such as `dmddxn.LZSI2024` and `dmddxe.CDEXLM2022`
-4. After initialization, cached curve loading uses `index.json` plus numeric `.npz` artifacts. Loading rebuilds the interpolator and does not execute pickle. The default cache directory is `~/.jarvis/operas/curve-cache` (`JARVIS_HOME` or `JARVIS_OPERAS_HOME` overrides the parent). An existing `~/.jarvis-operas/` tree is moved once.
+4. After initialization, cached curve loading uses `index.json` plus numeric `.npz` artifacts. Loading rebuilds the interpolator and does not execute pickle. The default cache directory is `~/.jarvis/operas/curve-cache` (`JARVIS_HOME` or `JARVIS_OPERAS_HOME` overrides the parent).
 
 Namespace rule for registered interpolation operators:
 
@@ -420,7 +420,6 @@ Interpolation functions support:
 | `interp1` | Four general interpolation examples. |
 | `dmddxn` | 27 DM-nucleon exclusion curves; input in GeV and output in cm². |
 | `dmddxe` | 20 DM-electron exclusion curves; input in MeV and output in cm². |
-| `HTs` | Optional HiggsTools evaluator and helpers; the current prototype requires an external package and local datasets. See its [status and setup notes](jarvis_operas/namespaces/hts/README.md). |
 
 Use `jopera namespaces`, `jopera list --namespace NAME`, and `jopera info NAME`
 to discover functions and their signatures, units, and supported backends.
@@ -448,11 +447,11 @@ registry.info("stat.chi2_cov")
 `jorel` is a maintainer-local script, excluded from Git and distribution archives.
 
 Record the release changes under `Unreleased` in `CHANGELOG.md`. Use the next
-version number (shown here as `1.5.2`):
+version number (shown here as `1.6.0`):
 
 ```bash
-./jorel 1.5.2 --dry
-./jorel 1.5.2
+./jorel 1.6.0 --dry
+./jorel 1.6.0
 ```
 
 `--dry` performs read-only source and release-note checks. The normal command

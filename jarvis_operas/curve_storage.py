@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Any, Mapping
 
-from .home import migrate_legacy_operas_state
+from .home import operas_home
 from .io_utils import atomic_write_bytes
 
 _CACHE_ROOT_ENV = "JARVIS_OPERAS_CURVE_CACHE_ROOT"
@@ -21,7 +21,7 @@ def get_curve_cache_root(cache_root: str | None = None) -> Path:
     env_value = os.getenv(_CACHE_ROOT_ENV)
     if env_value:
         return Path(env_value).expanduser().resolve()
-    return migrate_legacy_operas_state() / "curve-cache"
+    return operas_home() / "curve-cache"
 
 
 def get_curve_index_path(

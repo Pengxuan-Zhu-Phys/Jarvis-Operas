@@ -51,11 +51,14 @@ def _fake_higgs(*, allowed=False):
     )
 
 
-def test_hts_catalog_registration_and_import_are_lazy(monkeypatch) -> None:
+def test_hts_stays_out_of_the_public_registry(monkeypatch) -> None:
     sys.modules.pop("Higgs", None)
     registry = get_global_operas_registry()
-    assert "HTs.evaluate" in registry.list(namespace="HTs")
+    assert registry.list(namespace="HTs") == []
     assert "Higgs" not in sys.modules
+    from jarvis_operas.namespaces.hts import DECLARATIONS
+
+    assert any(item.full_name == "HTs.evaluate" for item in DECLARATIONS)
 
 
 def test_dataset_resolution_precedence_and_provenance(tmp_path, monkeypatch) -> None:

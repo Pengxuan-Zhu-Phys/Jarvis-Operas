@@ -17,11 +17,14 @@ from typing import Any
 import click
 import typer.rich_utils
 from rich import box
+from rich.align import Align
 from rich.console import Console
+from rich.highlighter import RegexHighlighter
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich.styled import Styled
+from rich.theme import Theme
 
 from .api import get_global_operas_registry
 from .core.registry import OperasRegistry
@@ -60,7 +63,6 @@ _HELP_ALIAS_COLUMN_WIDTH = 6
 _LIST_NAME_COLUMN_WIDTH = 28
 _LIST_CATEGORY_COLUMN_WIDTH = 18
 _NAMESPACE_DESCRIPTIONS = {
-    "HTs": "Optional HiggsTools evaluator",
     "cmb": "CMB models and likelihoods",
     "dmddxe": "Dark-matter electron-scattering experimental upper-limit curves",
     "dmddxn": "Dark-matter–nucleon direct-detection experimental upper-limit curves",
@@ -107,30 +109,48 @@ _HELP_METAVARS = {
 }
 
 
-def _help_table() -> Table:
-    table = Table(show_header=False, expand=True, box=None, pad_edge=False, padding=(0, 1))
-    table.add_column(width=_HELP_PRIMARY_COLUMN_WIDTH, no_wrap=True)
-    table.add_column(width=_HELP_ALIAS_COLUMN_WIDTH, no_wrap=True)
-    table.add_column(ratio=1, overflow="fold")
-    return table
+class _MetavarHighlighter(RegexHighlighter):
+    """Dim ``[ | ] < >`` in metavars when this Typer build has no highlighter."""
+
+    highlights = [
+        r"^(?P<metavar_sep>(\[|<))",
+        r"(?P<metavar_sep>\|)",
+        r"(?P<metavar_sep>(\]|>))(\.\.\.)?$",
+    ]
 
 
-def _help_panel(title: str, table: Table) -> Panel:
-    return Panel(
-        table,
-        title=Text(title, style="bold #d7b8ff"),
-        title_align="left",
-        border_style="#9b7dcc",
-        box=box.ROUNDED,
-        padding=(0, 1),
+_metavar_highlighter = getattr(typer.rich_utils, "metavar_highlighter", None) or _MetavarHighlighter()
+
+
+def _help_console(output: io.TextIOBase) -> Console:
+    """Use the Jarvis CLI palette. Color follows the real stdout, not this buffer."""
+
+    return Console(
+        file=output,
+        width=shutil.get_terminal_size().columns,
+        force_terminal=sys.stdout.isatty(),
+        color_system="auto",
+        highlighter=typer.rich_utils.highlighter,
+        theme=Theme(
+            {
+                "option": typer.rich_utils.STYLE_OPTION,
+                "switch": typer.rich_utils.STYLE_SWITCH,
+                "negative_option": typer.rich_utils.STYLE_NEGATIVE_OPTION,
+                "negative_switch": typer.rich_utils.STYLE_NEGATIVE_SWITCH,
+                "metavar": typer.rich_utils.STYLE_METAVAR,
+                "metavar_sep": typer.rich_utils.STYLE_METAVAR_SEPARATOR,
+                "usage": typer.rich_utils.STYLE_USAGE,
+            }
+        ),
     )
 
 
-def _help_param_label(param: click.Parameter, ctx: click.Context) -> tuple[Text, Text]:
+def _fixed_option_label(param: click.Parameter, ctx: click.Context) -> tuple[Text, Text]:
+    """Return the primary and alias columns shared by every help panel."""
+
     if isinstance(param, click.Argument):
-        return Text(param.name or "", style="#d7b8ff"), Text(
-            getattr(param, "metavar", None) or param.make_metavar(ctx), style="yellow"
-        )
+        metavar = getattr(param, "metavar", None) or param.make_metavar(ctx)
+        return typer.rich_utils.highlighter(param.name or ""), _metavar_highlighter(metavar)
     longs = [item for item in param.opts if item.startswith("--")]
     shorts = [item for item in param.opts if not item.startswith("--")]
     label = ",".join(longs or shorts)
@@ -138,37 +158,134 @@ def _help_param_label(param: click.Parameter, ctx: click.Context) -> tuple[Text,
     metavar = param.make_metavar(ctx)
     if metavar != "BOOLEAN":
         label = f"{label} {metavar}".strip()
-    return Text(label, style="#d7b8ff"), Text(alias, style="green")
+    return typer.rich_utils.highlighter(label), typer.rich_utils.highlighter(alias)
 
 
-def _render_help_options(*, title: str, params: list[click.Parameter], ctx: click.Context, console: Console) -> None:
-    params = [click.Option(["-h", "--help"], is_flag=True, help="Show this help message and exit."), *params]
-    table = _help_table()
+def _print_fixed_options_panel(
+    *,
+    name: str,
+    params: list[click.Parameter],
+    ctx: click.Context,
+    console: Console,
+) -> None:
+    if not params:
+        return
+    table = Table(
+        highlight=True,
+        show_header=False,
+        expand=True,
+        box=getattr(box, typer.rich_utils.STYLE_OPTIONS_TABLE_BOX, None),
+        show_lines=typer.rich_utils.STYLE_OPTIONS_TABLE_SHOW_LINES,
+        leading=typer.rich_utils.STYLE_OPTIONS_TABLE_LEADING,
+        border_style=typer.rich_utils.STYLE_OPTIONS_TABLE_BORDER_STYLE,
+        row_styles=typer.rich_utils.STYLE_OPTIONS_TABLE_ROW_STYLES,
+        pad_edge=typer.rich_utils.STYLE_OPTIONS_TABLE_PAD_EDGE,
+        padding=typer.rich_utils.STYLE_OPTIONS_TABLE_PADDING,
+    )
+    table.add_column(width=_HELP_PRIMARY_COLUMN_WIDTH, no_wrap=True)
+    table.add_column(width=_HELP_ALIAS_COLUMN_WIDTH, no_wrap=True)
+    table.add_column(justify="left", ratio=1)
+    markup_mode = typer.rich_utils.MARKUP_MODE_RICH
     for param in params:
-        primary, alias = _help_param_label(param, ctx)
-        help_text = typer.rich_utils._get_parameter_help(
-            param=param, ctx=ctx, markup_mode=typer.rich_utils.MARKUP_MODE_RICH
+        primary, alias = _fixed_option_label(param, ctx)
+        table.add_row(
+            primary,
+            alias,
+            typer.rich_utils._get_parameter_help(param=param, ctx=ctx, markup_mode=markup_mode),
         )
-        danger = any(word in (param.help or "").lower() for word in ("delete", "overwrite", "kill", "force"))
-        if danger:
-            help_text = Styled(help_text, style="red")
-        table.add_row(primary, alias, help_text)
-    console.print(_help_panel(title, table))
+    console.print(
+        Panel(
+            table,
+            border_style=typer.rich_utils.STYLE_OPTIONS_PANEL_BORDER,
+            title=name,
+            title_align=typer.rich_utils.ALIGN_OPTIONS_PANEL,
+        )
+    )
 
 
-def _render_help_commands(*, title: str, commands: list[click.Command], console: Console) -> None:
+def _print_fixed_commands_panel(
+    *,
+    name: str,
+    commands: list[click.Command],
+    console: Console,
+) -> None:
     if not commands:
         return
-    table = _help_table()
+    table = Table(
+        highlight=False,
+        show_header=False,
+        expand=True,
+        box=getattr(box, typer.rich_utils.STYLE_COMMANDS_TABLE_BOX, None),
+        show_lines=typer.rich_utils.STYLE_COMMANDS_TABLE_SHOW_LINES,
+        leading=typer.rich_utils.STYLE_COMMANDS_TABLE_LEADING,
+        border_style=typer.rich_utils.STYLE_COMMANDS_TABLE_BORDER_STYLE,
+        row_styles=typer.rich_utils.STYLE_COMMANDS_TABLE_ROW_STYLES,
+        pad_edge=typer.rich_utils.STYLE_COMMANDS_TABLE_PAD_EDGE,
+        padding=typer.rich_utils.STYLE_COMMANDS_TABLE_PADDING,
+    )
+    table.add_column(
+        style=typer.rich_utils.STYLE_COMMANDS_TABLE_FIRST_COLUMN,
+        width=_HELP_PRIMARY_COLUMN_WIDTH,
+        no_wrap=True,
+    )
+    table.add_column(width=_HELP_ALIAS_COLUMN_WIDTH, no_wrap=True)
+    table.add_column(justify="left", ratio=1)
+    markup_mode = typer.rich_utils.MARKUP_MODE_RICH
     for command in commands:
-        description = command.short_help or command.help or ""
-        style = "red" if any(word in description.lower() for word in ("delete", "kill", "overwrite")) else None
+        helptext = command.short_help or command.help or ""
         table.add_row(
-            Text(command.name or "", style="#d7b8ff"),
+            Text(command.name or ""),
             Text(),
-            Text(description, style=style),
+            typer.rich_utils._make_command_help(help_text=helptext, markup_mode=markup_mode),
         )
-    console.print(_help_panel(title, table))
+    console.print(
+        Panel(
+            table,
+            border_style=typer.rich_utils.STYLE_COMMANDS_PANEL_BORDER,
+            title=name,
+            title_align=typer.rich_utils.ALIGN_COMMANDS_PANEL,
+        )
+    )
+
+
+def _print_rich_help(command: click.Command, ctx: click.Context, console: Console) -> None:
+    """Lay out usage, description, and panels with the Jarvis CLI palette."""
+
+    markup_mode = typer.rich_utils.MARKUP_MODE_RICH
+    console.print(
+        Padding(typer.rich_utils.highlighter(command.get_usage(ctx)), 1),
+        style=typer.rich_utils.STYLE_USAGE_COMMAND,
+    )
+    if command.help:
+        console.print(
+            Padding(
+                Align(
+                    typer.rich_utils._get_help_text(obj=command, markup_mode=markup_mode),
+                    pad=False,
+                ),
+                (0, 1, 1, 1),
+            )
+        )
+    arguments: list[click.Argument] = []
+    options: list[click.Option] = []
+    for param in command.get_params(ctx):
+        if getattr(param, "hidden", False):
+            continue
+        if isinstance(param, click.Argument):
+            arguments.append(param)
+        elif isinstance(param, click.Option):
+            options.append(param)
+    for name, params in (("Arguments", arguments), ("Options", options)):
+        _print_fixed_options_panel(name=name, params=params, ctx=ctx, console=console)
+    if isinstance(command, click.Group):
+        grouped: dict[str, list[click.Command]] = {}
+        for command_name in command.list_commands(ctx):
+            child = command.get_command(ctx, command_name)
+            if child is None or child.hidden:
+                continue
+            grouped.setdefault(_HELP_COMMAND_GROUPS.get(command_name, "Commands"), []).append(child)
+        for name, children in grouped.items():
+            _print_fixed_commands_panel(name=name, commands=children, console=console)
 
 
 class _JarvisHelpGroup(click.Group):
@@ -219,32 +336,35 @@ class _JarvisArgumentParser(argparse.ArgumentParser):
                 commands[command_name] = command
         command_name = name or self.prog.rsplit(" ", maxsplit=1)[-1]
         if commands:
-            return _JarvisHelpGroup(name=command_name, help=self.description, params=self._click_params(), commands=commands)
-        return click.Command(name=command_name, help=self.description, params=self._click_params())
+            return _JarvisHelpGroup(
+                name=command_name,
+                help=self.description,
+                params=self._click_params(),
+                commands=commands,
+                context_settings={"help_option_names": ["-h", "--help"]},
+            )
+        return click.Command(
+            name=command_name,
+            help=self.description,
+            params=self._click_params(),
+            context_settings={"help_option_names": ["-h", "--help"]},
+        )
 
     def format_help(self) -> str:
         command = self._click_command()
         output = io.StringIO()
-        width = max(80, shutil.get_terminal_size().columns)
-        console = Console(file=output, width=width, force_terminal=False, color_system=None, highlight=False)
-        ctx = click.Context(command, info_name=self.prog, terminal_width=width, help_option_names=["-h", "--help"])
-        usage = Text("Usage: ", style="yellow")
-        usage.append(command.get_usage(ctx).removeprefix("Usage: "), style="yellow")
-        console.print(Panel(usage, title=Text(self.description or "Jarvis-Operas", style="bold #d7b8ff"), border_style="#9b7dcc", box=box.ROUNDED, padding=(0, 1)))
-        params = [param for param in command.params if not isinstance(param, click.Argument)]
-        arguments = [param for param in command.params if isinstance(param, click.Argument)]
-        _render_help_options(title="Options", params=params, ctx=ctx, console=console)
-        _render_help_options(title="Arguments", params=arguments, ctx=ctx, console=console)
-        if isinstance(command, click.Group):
-            grouped: dict[str, list[click.Command]] = {}
-            for name in command.list_commands(ctx):
-                child = command.get_command(ctx, name)
-                if child is not None:
-                    grouped.setdefault(_HELP_COMMAND_GROUPS.get(name, "Commands"), []).append(child)
-            for title, children in grouped.items():
-                _render_help_commands(title=title, commands=children, console=console)
-            console.print(Text("Command help: jopera COMMAND -h", style="dim"))
-            console.print(Text("See each command's arguments and options, e.g. jopera list -h", style="dim"))
+        width = shutil.get_terminal_size().columns
+        console = _help_console(output)
+        _print_rich_help(
+            command,
+            click.Context(
+                command,
+                info_name=self.prog,
+                terminal_width=width,
+                help_option_names=["-h", "--help"],
+            ),
+            console,
+        )
         return output.getvalue()
 
 
@@ -309,7 +429,7 @@ def _advanced_card() -> str:
           --unit-audit        Return canonical result, projection, and unit audit
           --log-mode MODE     warning|info|debug
           --json              Machine-readable output for supported commands
-          init --force        Rebuild all curve cache pickle artifacts
+          init --force        Rebuild all curve cache .npz artifacts
           init --namespaces   Comma list of interpolation namespaces (e.g. interp1,dmddxn,dmddxe)
 
         Example:
@@ -507,6 +627,18 @@ def _group_entries_by_namespace(
     return [(namespace, grouped[namespace]) for namespace in ordered_namespaces]
 
 
+def _result_panel(renderable: Any, title: str) -> Panel:
+    """Result cards use the same dim border as Jarvis help panels."""
+
+    return Panel(
+        renderable,
+        title=title,
+        title_align="left",
+        border_style=typer.rich_utils.STYLE_OPTIONS_PANEL_BORDER,
+        box=box.ROUNDED,
+    )
+
+
 def _print_list_human(entries: list[dict[str, Any]], namespace_filter: str | None) -> None:
     if not entries:
         if namespace_filter:
@@ -527,7 +659,12 @@ def _print_list_human(entries: list[dict[str, Any]], namespace_filter: str | Non
             padding=(0, 1),
         )
         table.add_column("ID", style="dim", width=6, no_wrap=True)
-        table.add_column("NAME", style="bold #d7b8ff", width=_LIST_NAME_COLUMN_WIDTH, overflow="fold")
+        table.add_column(
+            "NAME",
+            style=typer.rich_utils.STYLE_COMMANDS_TABLE_FIRST_COLUMN,
+            width=_LIST_NAME_COLUMN_WIDTH,
+            overflow="fold",
+        )
         table.add_column("CATEGORY", style="dim", width=max(8, _LIST_CATEGORY_COLUMN_WIDTH - 9), overflow="fold")
         table.add_column("SUMMARY", ratio=1, overflow="fold")
         for item in namespace_entries:
@@ -538,12 +675,9 @@ def _print_list_human(entries: list[dict[str, Any]], namespace_filter: str | Non
                 _render_summary_display(str(item.get("summary") or "-")),
             )
         console.print(
-            Panel(
+            _result_panel(
                 table,
-                title=f"Registered Jarvis-Operas · {namespace} ({len(namespace_entries)})",
-                title_align="left",
-                border_style="#9b7dcc",
-                box=box.ROUNDED,
+                f"Registered Jarvis-Operas · {namespace} ({len(namespace_entries)})",
             )
         )
 
@@ -595,7 +729,12 @@ def _namespace_description(namespace: str) -> str:
 
 
 def _print_namespace_list_human(entries: list[dict[str, Any]]) -> None:
-    table = Table(show_header=True, header_style="bold #d7b8ff", box=None, expand=True)
+    table = Table(
+        show_header=True,
+        header_style=typer.rich_utils.STYLE_COMMANDS_TABLE_FIRST_COLUMN,
+        box=None,
+        expand=True,
+    )
     table.add_column("NAMESPACE", width=20)
     table.add_column("FUNCTIONS", justify="right", width=10)
     table.add_column("DESCRIPTION", ratio=1, overflow="fold")
@@ -605,15 +744,7 @@ def _print_namespace_list_human(entries: list[dict[str, Any]]) -> None:
             str(entry["function_count"]),
             str(entry["description"]),
         )
-    _console().print(
-        Panel(
-            table,
-            title=f"Registered namespaces ({len(entries)})",
-            title_align="left",
-            border_style="#9b7dcc",
-            box=box.ROUNDED,
-        )
-    )
+    _console().print(_result_panel(table, f"Registered namespaces ({len(entries)})"))
     if not sys.stdout.isatty():
         print("\t", end="")
         print(
@@ -691,7 +822,7 @@ def _print_info_human(info: dict[str, Any]) -> None:
         table.add_row("SIGNATURE", str(info.get("signature", "")))
         table.add_row("ASYNC", str(is_async).lower())
     console = _console()
-    console.print(Panel(table, title="Operator metadata", title_align="left", border_style="#9b7dcc", box=box.ROUNDED))
+    console.print(_result_panel(table, "Operator metadata"))
     contract = metadata.get("unit_contract") if isinstance(metadata, dict) else None
     if isinstance(contract, Mapping):
         units = Table(show_header=True, box=None, expand=True, padding=(0, 1))
@@ -709,13 +840,7 @@ def _print_info_human(info: dict[str, Any]) -> None:
                     str(spec.get("shape", "scalar_or_array")),
                     str(spec.get("nullable", False)).lower(),
                 )
-        console.print(Panel(
-            units,
-            title=f"Unit contract {contract['version']}",
-            title_align="left",
-            border_style="#9b7dcc",
-            box=box.ROUNDED,
-        ))
+        console.print(_result_panel(units, f"Unit contract {contract['version']}"))
     # Keep the old field labels discoverable for scripts and users accustomed
     # to the pre-card output while the primary presentation remains structured.
     if not sys.stdout.isatty():
@@ -730,14 +855,14 @@ def _print_info_human(info: dict[str, Any]) -> None:
         note_table = Table(show_header=False, box=None, expand=True, padding=(0, 1))
         note_table.add_column("NOTE", ratio=1, overflow="fold")
         note_table.add_row(note.strip())
-        console.print(Panel(note_table, title="Notes", title_align="left", border_style="#9b7dcc", box=box.ROUNDED))
+        console.print(_result_panel(note_table, "Notes"))
     if _is_user_loaded_function(info):
         paths = Table(show_header=False, box=None, expand=True, padding=(0, 1))
         paths.add_column("STORE", width=16, style="bold dim", no_wrap=True)
         paths.add_column("PATH", ratio=1, overflow="fold")
         paths.add_row("USER SOURCES", str(get_sources_store_path()))
         paths.add_row("USER OVERRIDES", str(get_overrides_store_path()))
-        console.print(Panel(paths, title="Persistence", title_align="left", border_style="#9b7dcc", box=box.ROUNDED))
+        console.print(_result_panel(paths, "Persistence"))
         if not sys.stdout.isatty():
             print(f"UserSources:\t{get_sources_store_path()}")
             print(f"UserOverrides:\t{get_overrides_store_path()}")
@@ -746,7 +871,7 @@ def _print_info_human(info: dict[str, Any]) -> None:
         examples = Table(show_header=False, box=None, expand=True, padding=(0, 1))
         examples.add_column("COMMAND", ratio=1, overflow="fold", style="cyan")
         examples.add_row(suggested.strip())
-        console.print(Panel(examples, title="Try next:", title_align="left", border_style="#9b7dcc", box=box.ROUNDED))
+        console.print(_result_panel(examples, "Try next:"))
 
 
 def _print_not_found_error(full_name: str, names: list[str]) -> None:
@@ -1115,6 +1240,9 @@ def build_parser() -> argparse.ArgumentParser:
             """
             Jarvis-Operas CLI
             Register, inspect, and run functions by name.
+
+            Command help: jopera COMMAND -h
+            See each command's arguments and options, e.g. jopera list -h
             """
         ).strip(),
         epilog="Use 'jopera help examples' for copy-paste examples.",

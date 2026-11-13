@@ -159,6 +159,53 @@ def test_cli_help_examples() -> None:
     assert "jopera info stat.chi2_cov" in result.stdout
 
 
+def test_cli_help_does_not_load_persisted_operator_scripts(tmp_path: Path) -> None:
+    home = Path(os.environ["JARVIS_OPERAS_HOME"])
+    cache_root = Path(os.environ["JARVIS_OPERAS_CURVE_CACHE_ROOT"])
+    bad = tmp_path / "empty_helper.py"
+    bad.write_text("VALUE = 1\n", encoding="utf-8")
+    (home / "sources.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "entries": [{"path": str(bad), "namespace": "localdemo"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    for key in (
+        "JARVIS_OPERAS_CURVE_INDEX",
+        "JARVIS_OPERAS_SOURCES_FILE",
+        "JARVIS_OPERAS_OVERRIDES_FILE",
+        "JARVIS_OPERAS_PERSIST_FILE",
+        "JARVIS_OPERAS_USER_SOURCE_DIR",
+    ):
+        env.pop(key, None)
+
+    def run(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-m", "jarvis_operas.cli", *args],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+
+    for args in (("-h",), ("--help",), ("-v",), (), ("help",)):
+        result = run(*args)
+        assert result.returncode == 0, result.stderr
+        assert "skip invalid persisted" not in result.stderr
+        assert "No operators were loaded" not in result.stderr
+    assert not cache_root.exists()
+
+    listed = run("list", "--namespace", "math", "--json")
+    assert listed.returncode == 0, listed.stderr
+    assert "skip invalid persisted operator file" in listed.stderr
+    assert "No operators were loaded" in listed.stderr
+    assert cache_root.exists()
+
+
 def test_cli_help_does_not_show_discover() -> None:
     result = _run_cli("--help")
 
@@ -175,9 +222,72 @@ def test_cli_help_uses_rounded_workflow_cards_and_fixed_usage() -> None:
     assert result.returncode == 0, result.stderr
     assert "Usage: jopera [OPTIONS] COMMAND [ARGS]..." in result.stdout
     assert "╭" in result.stdout and "╰" in result.stdout
+    assert "╭─ Arguments" not in result.stdout
+    assert result.stdout.index("╭─ Options") < result.stdout.index("╭─ Discovery")
     assert "Discovery" in result.stdout
     assert "Inspection" in result.stdout
     assert "Command help: jopera COMMAND -h" in result.stdout
+    assert result.stdout.count("Show this message and exit.") == 1
+
+    def column_of(fragment: str) -> int:
+        line = next(line for line in result.stdout.splitlines() if fragment in line)
+        return line.index(fragment)
+
+    assert column_of("Show the Jarvis-Operas version") == column_of("List available functions")
+
+
+def test_cli_help_uses_jarvis_palette_on_a_terminal(monkeypatch) -> None:
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setenv("COLORTERM", "truecolor")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    help_text = cli_mod.build_parser().format_help()
+
+    assert "\x1b[1;36m" in help_text
+    assert "\x1b[1;32m" in help_text
+    assert "\x1b[1;33m" in help_text
+    assert "38;2;215;184;255" not in help_text
+    assert "38;2;155;125;204" not in help_text
+
+
+def test_cli_help_advanced_describes_npz_artifacts() -> None:
+    result = _run_cli("--help-advanced")
+
+    assert result.returncode == 0, result.stderr
+    assert ".npz" in result.stdout
+    assert "pickle" not in result.stdout.lower()
+
+
+def test_cli_result_cards_use_jarvis_palette(monkeypatch) -> None:
+    import io
+
+    from rich.console import Console
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    output = io.StringIO()
+    monkeypatch.setattr(
+        cli_mod,
+        "_console",
+        lambda: Console(
+            file=output,
+            force_terminal=True,
+            color_system="standard",
+            no_color=False,
+            width=100,
+            highlight=False,
+        ),
+    )
+    cli_mod._print_namespace_list_human(
+        [{"namespace": "math", "function_count": 1, "description": "Numeric helper functions"}]
+    )
+    cli_mod._print_info_human({"name": "math.add", "is_async": False, "metadata": {}})
+    rendered = output.getvalue()
+
+    assert "\x1b[1;36m" in rendered
+    assert "38;2;215;184;255" not in rendered
+    assert "38;2;155;125;204" not in rendered
+    assert "Registered namespaces" in rendered
+    assert "Operator metadata" in rendered
 
 
 def test_cli_nested_help_uses_semantic_metavar_and_argument_card() -> None:
@@ -185,6 +295,7 @@ def test_cli_nested_help_uses_semantic_metavar_and_argument_card() -> None:
 
     assert result.returncode == 0, result.stderr
     assert "Arguments" in result.stdout
+    assert result.stdout.index("╭─ Arguments") < result.stdout.index("╭─ Options")
     assert "target" in result.stdout
     assert "<name>" in result.stdout
     assert "Usage: jopera info [OPTIONS] <name>" in result.stdout

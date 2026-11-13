@@ -157,7 +157,8 @@ def test_every_registered_function_can_be_imported(tmp_path, monkeypatch) -> Non
         assert short_name in module.__all__
         assert short_name in dir(module)
 
-    assert {"math", "stat", "helper", "pdg", "cmb", "HTs", "interp1", "dmddxn", "dmddxe"}.issubset(
+    assert "HTs" not in namespaces
+    assert {"math", "stat", "helper", "pdg", "cmb", "interp1", "dmddxn", "dmddxe"}.issubset(
         namespaces
     )
     assert namespaces.issubset(set(dir(joperas)))

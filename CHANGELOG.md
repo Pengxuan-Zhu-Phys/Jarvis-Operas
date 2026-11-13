@@ -7,6 +7,11 @@ are available in [Jarvis-Books](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Book
 
 ### Fixed
 
+- Accept `-V` as an alias of `-v` / `--version`.
+- `jopera -h`, `jopera --help`, `jopera --version`, and `jopera` with no
+  command no longer load the global registry. SymPy snapshots `func_locals`
+  and `numeric_funcs` are built on first use, so asking for help does not load
+  persisted operator scripts or print their warnings.
 - Import `joperas.<namespace>` from a persisted operator script without
   deadlocking startup. Importing `joperas` publishes the registry before any
   namespace module loads, and `from joperas.<namespace> import <name>` only
@@ -16,18 +21,27 @@ are available in [Jarvis-Books](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Book
   as `from joperas.math import add` and `from joperas.dmddxn import LZSI2024`
   resolve during load.
 - Pass an operator argument named `backend` through `registry.call` when its
-  value is not the dispatch name `numpy` or `polars`. HiggsTools helpers can
-  be called with `backend=<HiggsTools backend object>`.
+  value is not the dispatch name `numpy` or `polars`.
 - Reuse the default unit plan for ordinary NumPy calls instead of validating
   the contract and inspecting the signature on every call.
+- Keep curves from other namespaces when initializing a cache. Startup
+  initialization of the bundled library, and `jopera init --namespaces`,
+  update only the namespaces they compile. A custom manifest compiled into
+  the default cache stays in `index.json`, and its `.npz` files stay on disk.
+  Recompiling a namespace still removes curves deleted from that namespace
+  and deletes the artifact replaced by the new file.
 
 ### Changed
 
-- Store Jarvis-Operas state in `~/.jarvis/operas/` (`JARVIS_HOME` selects the
-  Jarvis directory, `JARVIS_OPERAS_HOME` selects the operas directory). The
-  curve cache, source list, override list, user-source snapshots and legacy
-  `user_ops.json` move out of `~/.jarvis-operas/` on first use. Files already
-  present in the new directory are left in place.
+- Render `jopera -h` with the Jarvis CLI help palette: bold usage, cyan long
+  options, green short options, yellow metavars, cyan command names, and dim
+  panel borders. The usage line sits above the panels, and a command with no
+  positional arguments does not show an Arguments panel. `jopera list`,
+  `jopera namespaces`, and `jopera info` use that same dim border and cyan
+  text. `jopera --help-advanced` describes curve cache files as `.npz`.
+- Read and write Jarvis-Operas state only under `~/.jarvis/operas/`
+  (`JARVIS_HOME` selects the Jarvis directory, `JARVIS_OPERAS_HOME` selects
+  the operas directory). `~/.jarvis-operas/` is not read and is not moved.
 - Store compiled curves as numeric `.npz` artifacts referenced by `index.json`.
   Loading rebuilds `Curve1DInterpolator` and does not execute pickle. An older
   pickle entry is rebuilt by `jopera init` and then removed.
@@ -35,6 +49,11 @@ are available in [Jarvis-Books](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Book
   normalization applied when the operator declares a unit contract. A name
   already bound in the caller keeps that function object. Polars dispatch
   stays on `registry.call`. Namespace attributes are read-only.
+- Leave the HiggsTools helpers out of the public registry. `HTs` is not
+  registered, so `jopera list`, `registry.list()` and `joperas.HTs` do not
+  expose it. The implementation remains in `jarvis_operas.namespaces.hts`
+  for development, and user operators still cannot register into that
+  namespace.
 
 ### Added
 

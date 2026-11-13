@@ -4,6 +4,7 @@ import hashlib
 import re
 from collections.abc import Mapping
 from difflib import get_close_matches
+from threading import get_ident
 from types import SimpleNamespace
 from typing import Any, Callable
 
@@ -203,19 +204,51 @@ def build_sympy_dicts(
     return parse_locals, numeric_funcs_map
 
 
+# Importing this module must not build the snapshots. `jopera -h` imports it
+# before argparse runs, and building them bootstraps the global registry,
+# which loads persisted scripts and logs their failures. Callers keep the same
+# dict objects; the first read or refresh fills them. Same-thread reentry
+# returns those objects unfinished, because bootstrap can import them.
+_func_locals: dict[str, Any] = {}
+_numeric_funcs: dict[str, Callable[..., Any]] = {}
+_sympy_snapshots_ready = False
+_sympy_snapshots_owner: int | None = None
+
+
+def _ensure_sympy_snapshots() -> None:
+    global _sympy_snapshots_ready, _sympy_snapshots_owner
+
+    if _sympy_snapshots_ready or _sympy_snapshots_owner == get_ident():
+        return
+
+    _sympy_snapshots_owner = get_ident()
+    try:
+        built_locals, built_numeric = build_sympy_dicts(include_all=True)
+        _func_locals.clear()
+        _func_locals.update(built_locals)
+        _numeric_funcs.clear()
+        _numeric_funcs.update(built_numeric)
+        _sympy_snapshots_ready = True
+    finally:
+        _sympy_snapshots_owner = None
+
+
 def _refresh_sympy_dicts() -> None:
     # Always fold constants into the module-level snapshot (full-view semantics).
     # Pass constants= explicitly because mapping is non-None here, which would
     # otherwise take the V1/PLOT "no fold" path.
+    global _sympy_snapshots_ready
+
     refreshed_func_locals, refreshed_numeric_funcs = build_sympy_dicts(
         build_register_dicts(),
         include_all=True,
         constants=build_constant_dicts(),
     )
-    func_locals.clear()
-    func_locals.update(refreshed_func_locals)
-    numeric_funcs.clear()
-    numeric_funcs.update(refreshed_numeric_funcs)
+    _func_locals.clear()
+    _func_locals.update(refreshed_func_locals)
+    _numeric_funcs.clear()
+    _numeric_funcs.update(refreshed_numeric_funcs)
+    _sympy_snapshots_ready = True
 
 
 def refresh_sympy_dicts_if_global_registry(registry: Any) -> bool:
@@ -227,4 +260,15 @@ def refresh_sympy_dicts_if_global_registry(registry: Any) -> bool:
     return True
 
 
-func_locals, numeric_funcs = build_sympy_dicts(include_all=True)
+def __getattr__(name: str) -> Any:
+    if name == "func_locals":
+        _ensure_sympy_snapshots()
+        return _func_locals
+    if name == "numeric_funcs":
+        _ensure_sympy_snapshots()
+        return _numeric_funcs
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | {"func_locals", "numeric_funcs"})

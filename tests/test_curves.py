@@ -184,6 +184,87 @@ def test_init_curve_cache_reuses_existing_pickle(tmp_path) -> None:
     assert second["cached"] == ["quadratic"]
 
 
+def _namespace_manifest(path: Path, namespace: str, curves: list[dict[str, Any]]) -> None:
+    path.write_text(
+        json.dumps({"namespace": namespace, "curves": curves}),
+        encoding="utf-8",
+    )
+
+
+def test_init_keeps_curves_from_other_namespaces(tmp_path: Path) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    _write_curve(source_dir / "custom.json", [0.0, 1.0, 2.0], [0.0, 2.0, 4.0])
+    _write_curve(source_dir / "builtin.json", [0.0, 1.0, 2.0], [0.0, 1.0, 2.0])
+    custom_manifest = tmp_path / "custom.json"
+    builtin_manifest = tmp_path / "builtin.json"
+    _namespace_manifest(
+        custom_manifest,
+        "localdemo",
+        [{"curve_id": "CustomLine", "source": "source/custom.json", "kind": "linear", "hot": True}],
+    )
+    _namespace_manifest(
+        builtin_manifest,
+        "dmddxn",
+        [{"curve_id": "PackagedLine", "source": "source/builtin.json", "kind": "linear", "hot": True}],
+    )
+    cache_root = tmp_path / "cache"
+    init_curve_cache(str(custom_manifest), cache_root=str(cache_root))
+    custom_artifact = next((cache_root / "curves").glob("*.npz"))
+
+    init_curve_cache(
+        str(builtin_manifest),
+        cache_root=str(cache_root),
+        namespaces=["dmddxn"],
+    )
+
+    index = json.loads(get_curve_index_path(cache_root=str(cache_root)).read_text(encoding="utf-8"))
+    assert set(index["curves"]) == {"CustomLine", "PackagedLine"}
+    assert custom_artifact.is_file()
+    table = load_hot_curve_function_table(cache_root=str(cache_root))
+    assert np.isclose(table["CustomLine"](1.0), 2.0)
+    assert np.isclose(table["PackagedLine"](1.0), 1.0)
+
+
+def test_init_drops_a_removed_curve_and_its_replaced_artifact(tmp_path: Path) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    kept_path = source_dir / "kept.json"
+    dropped_path = source_dir / "dropped.json"
+    _write_curve(kept_path, [0.0, 1.0, 2.0], [0.0, 1.0, 2.0])
+    _write_curve(dropped_path, [0.0, 1.0, 2.0], [0.0, 3.0, 6.0])
+    manifest_path = tmp_path / "manifest.json"
+    _namespace_manifest(
+        manifest_path,
+        "localdemo",
+        [
+            {"curve_id": "Kept", "source": "source/kept.json", "kind": "linear", "hot": True},
+            {"curve_id": "Dropped", "source": "source/dropped.json", "kind": "linear", "hot": True},
+        ],
+    )
+    cache_root = tmp_path / "cache"
+    init_curve_cache(str(manifest_path), cache_root=str(cache_root))
+    dropped_artifact = next(path for path in (cache_root / "curves").glob("*.npz") if "Dropped" in path.name)
+    kept_artifact = next(path for path in (cache_root / "curves").glob("*.npz") if "Kept" in path.name)
+
+    _write_curve(kept_path, [0.0, 1.0, 2.0], [0.0, 5.0, 10.0])
+    _namespace_manifest(
+        manifest_path,
+        "localdemo",
+        [{"curve_id": "Kept", "source": "source/kept.json", "kind": "linear", "hot": True}],
+    )
+    init_curve_cache(str(manifest_path), cache_root=str(cache_root))
+
+    index = json.loads(get_curve_index_path(cache_root=str(cache_root)).read_text(encoding="utf-8"))
+    assert set(index["curves"]) == {"Kept"}
+    assert not dropped_artifact.exists()
+    assert not kept_artifact.exists()
+    remaining = list((cache_root / "curves").glob("*.npz"))
+    assert len(remaining) == 1
+    table = load_hot_curve_function_table(cache_root=str(cache_root))
+    assert np.isclose(table["Kept"](1.0), 5.0)
+
+
 def test_register_hot_curves_updates_function_table(tmp_path) -> None:
     source_dir = tmp_path / "source"
     source_dir.mkdir()
@@ -1011,3 +1092,29 @@ def test_global_registry_bootstrap_refreshes_builtin_curve_cache(
 
     value = registry.call("dmddxn.LZSI2024", x=1.0)
     assert np.isnan(float(value))
+
+
+def test_startup_keeps_a_custom_curve_in_the_default_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    _write_curve(source_dir / "custom.json", [0.0, 1.0, 2.0], [0.0, 2.0, 4.0])
+    manifest_path = tmp_path / "custom.manifest.json"
+    _namespace_manifest(
+        manifest_path,
+        "localdemo",
+        [{"curve_id": "CustomLine", "source": "source/custom.json", "kind": "linear", "hot": True}],
+    )
+    cache_root = get_curve_index_path().parent
+    init_curve_cache(str(manifest_path), cache_root=str(cache_root))
+    custom_artifact = next((cache_root / "curves").glob("*.npz"))
+
+    import jarvis_operas.api as api_mod
+
+    monkeypatch.setattr(api_mod, "_global_operas_registry", None)
+    monkeypatch.setattr(api_mod, "_global_operas", None)
+    monkeypatch.setattr(api_mod, "_bootstrap_owner", None)
+    registry = get_global_operas_registry()
+
+    assert custom_artifact.is_file()
+    assert np.isclose(registry.call("localdemo.CustomLine", x=1.0), 2.0)
+    assert np.isnan(float(registry.call("dmddxn.LZSI2024", x=1.0)))

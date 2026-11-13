@@ -77,10 +77,11 @@ def init_curve_cache(
         raise FileNotFoundError(f"manifest file not found: {resolved_manifest}")
 
     manifest_obj = _read_json_object(resolved_manifest)
+    selected_namespaces = _normalize_selected_namespaces(namespaces)
     curve_specs = _parse_manifest(
         manifest_obj,
         resolved_manifest,
-        selected_namespaces=_normalize_selected_namespaces(namespaces),
+        selected_namespaces=selected_namespaces,
     )
     resolved_source_root = (
         Path(source_root).expanduser().resolve()
@@ -94,6 +95,9 @@ def init_curve_cache(
 
     old_index = _read_index(resolved_index)
     old_entries = old_index.get("curves", {}) if isinstance(old_index, Mapping) else {}
+    if not isinstance(old_entries, Mapping):
+        old_entries = {}
+    owned_namespaces = _owned_namespaces(manifest_obj, curve_specs, selected_namespaces)
 
     entries: dict[str, dict[str, Any]] = {}
     compiled: list[str] = []
@@ -146,16 +150,30 @@ def init_curve_cache(
             "metadata": dict(spec["metadata"]),
         }
 
+    # This init owns the namespaces it compiled. Curves in every other
+    # namespace stay, including a custom manifest sharing the default cache.
+    preserved: dict[str, dict[str, Any]] = {}
+    for curve_id, old_entry in old_entries.items():
+        if not isinstance(curve_id, str) or not isinstance(old_entry, Mapping):
+            continue
+        if curve_id in entries:
+            continue
+        namespace = _resolve_curve_namespace(curve_entry=old_entry, default_namespace="interp")
+        if namespace in owned_namespaces:
+            continue
+        preserved[curve_id] = dict(old_entry)
+    merged_entries = {**preserved, **entries}
+
     index_payload = {
         "version": _INDEX_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "manifest_path": str(resolved_manifest),
         "source_root": str(resolved_source_root),
         "artifact_format": _ARTIFACT_FORMAT,
-        "curves": entries,
+        "curves": merged_entries,
     }
     _write_json(resolved_index, index_payload)
-    _remove_unreferenced_artifacts(resolved_index.parent / "curves", entries)
+    _delete_replaced_artifacts(resolved_index.parent / "curves", old_entries, merged_entries)
 
     local_logger.info(
         "initialized curve cache from {} (compiled={}, cached={}, total={})",
@@ -349,18 +367,65 @@ def _read_curve_artifact(path: Path) -> tuple[np.ndarray, np.ndarray]:
         return np.asarray(payload["x"], dtype=float), np.asarray(payload["y"], dtype=float)
 
 
-def _remove_unreferenced_artifacts(curves_dir: Path, entries: Mapping[str, Mapping[str, Any]]) -> None:
+def _owned_namespaces(
+    manifest_obj: Mapping[str, Any],
+    curve_specs: list[dict[str, Any]],
+    selected_namespaces: set[str] | None,
+) -> set[str]:
+    """Namespaces this init may add, replace, or remove."""
+
+    if selected_namespaces is not None:
+        return set(selected_namespaces)
+    raw_namespaces = manifest_obj.get("namespaces")
+    if isinstance(raw_namespaces, list):
+        declared: set[str] = set()
+        for item in raw_namespaces:
+            if not isinstance(item, Mapping):
+                continue
+            name = item.get("namespace")
+            if isinstance(name, str) and name.strip():
+                declared.add(name.strip())
+        if declared:
+            return declared
+    owned = {str(spec["namespace"]) for spec in curve_specs if spec.get("namespace")}
+    manifest_namespace = manifest_obj.get("namespace")
+    if isinstance(manifest_namespace, str) and manifest_namespace.strip():
+        owned.add(manifest_namespace.strip())
+    return owned
+
+
+def _artifact_basename(entry: Mapping[str, Any]) -> str | None:
+    for key in ("artifact", "pickle"):
+        ref = entry.get(key)
+        if isinstance(ref, str) and ref.strip():
+            return Path(ref).name
+    return None
+
+
+def _delete_replaced_artifacts(
+    curves_dir: Path,
+    old_entries: Mapping[str, Any],
+    merged_entries: Mapping[str, Mapping[str, Any]],
+) -> None:
+    """Delete artifacts left behind by curves this init replaced or removed."""
+
+    referenced: set[str] = set()
+    for entry in merged_entries.values():
+        if isinstance(entry, Mapping):
+            name = _artifact_basename(entry)
+            if name:
+                referenced.add(name)
     if not curves_dir.is_dir():
         return
-    referenced = set()
-    for entry in entries.values():
-        artifact = entry.get("artifact")
-        if isinstance(artifact, str) and artifact.strip():
-            referenced.add(Path(artifact).name)
-    for child in curves_dir.iterdir():
-        if not child.is_file():
+    for curve_id, old_entry in old_entries.items():
+        if not isinstance(old_entry, Mapping):
             continue
-        if child.suffix not in {".npz", ".pkl"}:
+        kept = merged_entries.get(curve_id)
+        if isinstance(kept, Mapping) and _artifact_basename(kept) == _artifact_basename(old_entry):
             continue
-        if child.name not in referenced:
-            child.unlink()
+        name = _artifact_basename(old_entry)
+        if not name or name in referenced:
+            continue
+        path = curves_dir / name
+        if path.is_file() and path.suffix in {".npz", ".pkl"}:
+            path.unlink()

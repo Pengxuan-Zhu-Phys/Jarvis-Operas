@@ -28,42 +28,23 @@ def _isolate_home(monkeypatch, tmp_path):
         monkeypatch.delenv(name, raising=False)
 
 
-def test_legacy_operas_directory_moves_into_jarvis_home(tmp_path, monkeypatch) -> None:
+def test_state_paths_use_jarvis_operas_and_ignore_the_old_directory(tmp_path, monkeypatch) -> None:
     _isolate_home(monkeypatch, tmp_path)
     legacy = tmp_path / ".jarvis-operas"
-    cache = legacy / "curve-cache"
-    cache.mkdir(parents=True)
-    (cache / "index.json").write_text("{}\n", encoding="utf-8")
-    (legacy / "sources.json").write_text('{"entries": []}\n', encoding="utf-8")
-    (legacy / "user_sources").mkdir()
-    (legacy / "user_sources" / "a.py").write_text("x = 1\n", encoding="utf-8")
+    legacy.mkdir()
+    (legacy / "sources.json").write_text('{"entries": [{"path": "old"}]}\n', encoding="utf-8")
+    (legacy / "curve-cache").mkdir()
+    (legacy / "curve-cache" / "index.json").write_text("{}\n", encoding="utf-8")
 
     from jarvis_operas.curve_storage import get_curve_cache_root
     from jarvis_operas.persistence import get_sources_store_path, get_user_source_store_dir
 
-    root = get_curve_cache_root()
     operas = (tmp_path / ".jarvis" / "operas").resolve()
-    assert root == operas / "curve-cache"
-    assert (root / "index.json").read_text(encoding="utf-8") == "{}\n"
+    assert get_curve_cache_root() == operas / "curve-cache"
     assert get_sources_store_path() == operas / "sources.json"
-    assert (get_user_source_store_dir() / "a.py").read_text(encoding="utf-8") == "x = 1\n"
-    assert not legacy.exists()
-
-
-def test_existing_operas_files_win_over_legacy(tmp_path, monkeypatch) -> None:
-    _isolate_home(monkeypatch, tmp_path)
-    current = tmp_path / ".jarvis" / "operas"
-    current.mkdir(parents=True)
-    (current / "sources.json").write_text('{"kept": true}\n', encoding="utf-8")
-    legacy = tmp_path / ".jarvis-operas"
-    legacy.mkdir()
-    (legacy / "sources.json").write_text('{"kept": false}\n', encoding="utf-8")
-
-    from jarvis_operas.persistence import get_sources_store_path
-
-    path = get_sources_store_path()
-    assert path.read_text(encoding="utf-8") == '{"kept": true}\n'
+    assert get_user_source_store_dir() == operas / "user_sources"
     assert (legacy / "sources.json").is_file()
+    assert not (operas / "sources.json").exists()
 
 
 def test_curve_cache_writes_npz_and_rebuilds_retired_pickle(tmp_path) -> None:
