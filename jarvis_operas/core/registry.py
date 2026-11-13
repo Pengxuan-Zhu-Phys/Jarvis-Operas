@@ -40,6 +40,21 @@ def recommended_numpy_concurrency(*, cpu_count: int | None = None) -> int:
 _DEFAULT_NUMPY_CONCURRENCY = recommended_numpy_concurrency()
 
 
+def _split_operator_backend(backend: Any, kwargs: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Keep a non-string ``backend`` argument for the operator itself.
+
+    ``"numpy"`` and ``"polars"`` select registry dispatch. HiggsTools operators
+    already use ``backend`` for their own object, and that value must not be
+    read as the dispatch switch.
+    """
+
+    if isinstance(backend, str):
+        return backend, kwargs
+    forwarded = dict(kwargs)
+    forwarded["backend"] = backend
+    return "numpy", forwarded
+
+
 def _normalize_namespace(namespace: str) -> str:
     return normalize_common_namespace(namespace)
 
@@ -327,26 +342,54 @@ class OperasRegistry:
             "supported_types": supported_types,
         }
 
+    def _default_unit_plan(self, declaration: OperaFunction) -> UnitCallPlan:
+        # Declarations are not hashable, so the plan hangs off the object itself.
+        plan = declaration.__dict__.get("_jo_default_unit_plan")
+        if plan is None:
+            plan = prepare_unit_call(declaration)
+            object.__setattr__(declaration, "_jo_default_unit_plan", plan)
+        return plan
+
+    def _execute(
+        self,
+        declaration: OperaFunction,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        *,
+        backend: Any,
+    ) -> Any:
+        dispatch_backend, call_kwargs = _split_operator_backend(backend, kwargs)
+        if dispatch_backend == "numpy" and declaration.metadata.get("unit_contract") is not None:
+            args, call_kwargs, _ = self._default_unit_plan(declaration).normalize_inputs(args, call_kwargs)
+        if "backend" in call_kwargs:
+            if declaration.numpy_impl is None:
+                raise OperatorCallError(
+                    declaration.full_name,
+                    f"Operator '{declaration.full_name}' does not provide numpy_impl.",
+                )
+            declaration.validate_arity(args)
+            return declaration.numpy_impl(*args, **call_kwargs)
+        return declaration.dispatch(*args, backend=dispatch_backend, **call_kwargs)
+
     def call(
         self,
         full_name_or_id: str,
         *args: Any,
-        backend: str = "numpy",
+        backend: Any = "numpy",
         logger: Any | None = None,
         **kwargs: Any,
     ) -> Any:
         declaration = self.get(full_name_or_id)
+        dispatch_backend, _ = _split_operator_backend(backend, kwargs)
 
         try:
-            if backend == "numpy" and declaration.metadata.get("unit_contract") is not None:
-                args, kwargs, _ = prepare_unit_call(declaration).normalize_inputs(args, kwargs)
-            result = declaration.dispatch(*args, backend=backend, **kwargs)
+            result = self._execute(declaration, args, kwargs, backend=backend)
         except (UnitContractError, OperatorCallError):
             raise
         except Exception as exc:
             raise OperatorCallError(
                 declaration.full_name,
-                f"Operator '{declaration.full_name}' failed on backend='{backend}': {exc}",
+                f"Operator '{declaration.full_name}' failed on backend='{dispatch_backend}': {exc}",
             ) from exc
 
         if inspect.isawaitable(result):
@@ -360,7 +403,7 @@ class OperasRegistry:
             mode=self._log_mode,
             operator=declaration.full_name,
             action="call_function",
-            backend=backend,
+            backend=dispatch_backend,
         )
         local_logger.debug("dispatched call")
         return result
@@ -369,17 +412,18 @@ class OperasRegistry:
         self,
         full_name_or_id: str,
         *args: Any,
-        backend: str = "numpy",
+        backend: Any = "numpy",
         logger: Any | None = None,
         **kwargs: Any,
     ) -> Any:
         declaration = self.get(full_name_or_id)
+        dispatch_backend, _ = _split_operator_backend(backend, kwargs)
 
-        if backend == "polars":
+        if dispatch_backend == "polars":
             return self.call(
                 declaration.full_name,
                 *args,
-                backend=backend,
+                backend=dispatch_backend,
                 logger=logger,
                 **kwargs,
             )
@@ -388,9 +432,8 @@ class OperasRegistry:
         async with semaphore:
             if declaration.is_numpy_async():
                 try:
-                    if declaration.metadata.get("unit_contract") is not None:
-                        args, kwargs, _ = prepare_unit_call(declaration).normalize_inputs(args, kwargs)
-                    return await declaration.dispatch(*args, backend=backend, **kwargs)
+                    result = self._execute(declaration, args, kwargs, backend=backend)
+                    return await result
                 except UnitContractError:
                     raise
                 except OperatorCallError:

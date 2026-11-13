@@ -11,10 +11,12 @@ The namespace and function name are the same identifiers accepted by
     mZ()
     LZSI2024(30.0)
 
-Calling an imported name uses the global registry, including canonical unit
-handling. Built-in operators, interpolation curves, and user operators already
-loaded into that registry are all available. A function registered later in the
-same process appears on the next attribute lookup.
+An imported name is the NumPy function, with canonical unit handling applied
+when the operator declares a unit contract. Built-in operators, interpolation
+curves, and user operators already loaded into the global registry are all
+available. A name imported later sees a replacement; a name already bound in
+the caller keeps the function it received. Polars dispatch stays on
+``registry.call``.
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ from typing import Any, Callable
 
 from jarvis_operas.errors import OperatorNotFound
 from jarvis_operas.name_utils import normalize_namespace
+from jarvis_operas.units import prepare_unit_call
 
 _PACKAGE = "joperas"
 _FINDER_MARK = "_joperas_namespace_finder"
@@ -37,9 +40,35 @@ _HIDDEN_PARAMETERS = frozenset({"self", "logger"})
 
 
 def _registry():
-    from jarvis_operas.api import get_global_operas_registry
+    """Return the published registry. Never start or wait for bootstrap.
 
-    return get_global_operas_registry()
+    ``find_spec`` runs while the import lock is held. Waiting there deadlocks
+    when bootstrap itself is still importing ``joperas.<namespace>``.
+    """
+
+    from jarvis_operas.api import published_global_operas_registry
+
+    published = published_global_operas_registry()
+    if published is None:
+        raise ImportError(
+            "joperas namespaces are read from the published Jarvis-Operas registry. "
+            "Importing joperas publishes that registry before a namespace module loads."
+        )
+    return published
+
+
+def _ensure_registry() -> None:
+    """Publish the global registry before any ``joperas.<namespace>`` import.
+
+    This runs while the ``joperas`` package itself is loading, before a
+    namespace module lock is held. A persisted script can then import a
+    namespace without re-entering bootstrap.
+    """
+
+    from jarvis_operas.api import get_global_operas_registry, published_global_operas_registry
+
+    if published_global_operas_registry() is None:
+        get_global_operas_registry()
 
 
 def _registered_namespaces() -> list[str]:
@@ -123,7 +152,8 @@ def _documentation(declaration) -> str:
         parts.append(implementation_doc)
     parts.append(
         f"Jarvis-Operas function {declaration.full_name}. "
-        "Calling it dispatches through the global registry, including canonical units."
+        "A call runs the NumPy implementation. Canonical units are applied when "
+        "this function declares a unit contract."
     )
     return "\n\n".join(parts)
 
@@ -133,9 +163,23 @@ def _apply_declaration(function: Callable[..., Any], declaration) -> None:
     function.__signature__ = _public_signature(declaration)  # type: ignore[attr-defined]
 
 
-def _make_callable(full_name: str, namespace: str, short_name: str) -> Callable[..., Any]:
-    def function(*args, **kwargs):
-        return _registry().call(full_name, *args, **kwargs)
+def _make_callable(declaration) -> Callable[..., Any]:
+    full_name = declaration.full_name
+    namespace = declaration.namespace
+    short_name = declaration.name
+    implementation = declaration.numpy_impl
+    plan = None
+    if implementation is not None and declaration.metadata.get("unit_contract") is not None:
+        plan = prepare_unit_call(declaration)
+
+    if implementation is None:
+        def function(*args, **kwargs):
+            return _registry().call(full_name, *args, **kwargs)
+    else:
+        def function(*args, **kwargs):
+            if plan is not None:
+                args, kwargs, _ = plan.normalize_inputs(args, kwargs)
+            return implementation(*args, **kwargs)
 
     function.__name__ = short_name
     function.__qualname__ = short_name
@@ -143,6 +187,7 @@ def _make_callable(full_name: str, namespace: str, short_name: str) -> Callable[
     function.full_name = full_name  # type: ignore[attr-defined]
     function.namespace = namespace  # type: ignore[attr-defined]
     function.name = short_name  # type: ignore[attr-defined]
+    _apply_declaration(function, declaration)
     return function
 
 
@@ -162,10 +207,18 @@ class _NamespaceModule(ModuleType):
         cache: dict[str, Callable[..., Any]] = self.__dict__.setdefault("_jo_functions", {})
         function = cache.get(name)
         if function is None:
-            function = _make_callable(full_name, namespace, name)
+            function = _make_callable(declaration)
             cache[name] = function
-        _apply_declaration(function, declaration)
+        self.__dict__[name] = function
         return function
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if not name.startswith("_") and not (name.startswith("__") and name.endswith("__")):
+            raise AttributeError(
+                f"{self.__name__}.{name} is read-only. Import it and call it; "
+                "assigning here does not change the operator registry."
+            )
+        super().__setattr__(name, value)
 
     def __dir__(self) -> list[str]:
         names = set(self.__dict__)
@@ -240,3 +293,4 @@ def __dir__() -> list[str]:
 __all__: list[str] = []
 
 _install_finder()
+_ensure_registry()

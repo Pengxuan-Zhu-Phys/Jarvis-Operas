@@ -10,6 +10,7 @@ from threading import RLock
 from typing import Any
 
 from .errors import OperatorNotFound
+from .home import migrate_legacy_operas_state
 from .io_utils import atomic_write_bytes
 from .logging import get_logger
 from .name_utils import (
@@ -56,7 +57,7 @@ def _resolve_store_file_path(
             return legacy_path.with_name(legacy_filename)
         return legacy_path / legacy_filename
 
-    return Path.home() / ".jarvis-operas" / default_filename
+    return migrate_legacy_operas_state() / default_filename
 
 
 def get_persist_store_path() -> Path:
@@ -65,7 +66,7 @@ def get_persist_store_path() -> Path:
     legacy_path = _legacy_env_base_path()
     if legacy_path is not None:
         return legacy_path
-    return Path.home() / ".jarvis-operas" / "user_ops.json"
+    return migrate_legacy_operas_state() / "user_ops.json"
 
 
 def get_sources_store_path() -> Path:

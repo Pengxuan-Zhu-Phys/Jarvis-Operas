@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from threading import Lock
+from threading import Condition, Lock, get_ident
 from typing import Any
 
 from .bootstrap_state import (
@@ -25,6 +25,8 @@ from .registration import (
 _global_operas_registry: OperasRegistry | None = None
 _global_operas: Operas | None = None
 _global_lock = Lock()
+_bootstrap_condition = Condition(_global_lock)
+_bootstrap_owner: int | None = None
 _CURVE_INDEX_ENV = "JARVIS_OPERAS_CURVE_INDEX"
 
 
@@ -35,7 +37,9 @@ def _bootstrap_global_registry(registry: OperasRegistry) -> None:
     # Lazy imports avoid bootstrap cycles during package import.
     from .persistence import apply_persisted_overrides, load_persisted_user_ops
 
-    load_persisted_user_ops(registry, refresh_sympy=False)
+    # Persisted scripts import joperas namespaces at module level. Curves have
+    # to be registered before those scripts run, or dmddxn/dmddxe imports fail
+    # and the whole file is skipped. Overrides stay last so deletions still win.
     curve_index_path: str | None = None
     if not os.getenv(_CURVE_INDEX_ENV):
         try:
@@ -45,20 +49,55 @@ def _bootstrap_global_registry(registry: OperasRegistry) -> None:
             local_logger.warning("failed to initialize built-in interpolation cache: {}", exc)
 
     register_hot_curves_in_registry(registry, index_path=curve_index_path, logger=local_logger)
+    load_persisted_user_ops(registry, refresh_sympy=False)
     apply_persisted_overrides(registry)
 
 
-def get_global_operas_registry() -> OperasRegistry:
-    global _global_operas_registry
+def published_global_operas_registry() -> OperasRegistry | None:
+    """Return the global registry without starting or waiting for bootstrap.
 
-    if _global_operas_registry is None:
-        with _global_lock:
-            if _global_operas_registry is None:
-                registry = OperasRegistry()
-                with bootstrapping_global_registry():
-                    _bootstrap_global_registry(registry)
-                _global_operas_registry = registry
+    Import hooks call this while holding a module lock. Waiting for bootstrap
+    from that point deadlocks if bootstrap itself is importing the module.
+    """
+
     return _global_operas_registry
+
+
+def get_global_operas_registry() -> OperasRegistry:
+    global _bootstrap_owner, _global_operas_registry
+
+    # The bootstrap thread loads user scripts, and those scripts import joperas,
+    # which calls back here. The lock is not reentrant, so this thread must
+    # observe the registry already published above and return without waiting.
+    if _bootstrap_owner == get_ident() and _global_operas_registry is not None:
+        return _global_operas_registry
+
+    with _global_lock:
+        while True:
+            if _global_operas_registry is not None and _bootstrap_owner is None:
+                return _global_operas_registry
+            if _bootstrap_owner is not None:
+                _bootstrap_condition.wait()
+                continue
+            registry = OperasRegistry()
+            _global_operas_registry = registry
+            _bootstrap_owner = get_ident()
+            break
+
+    try:
+        with bootstrapping_global_registry():
+            _bootstrap_global_registry(registry)
+    except BaseException:
+        with _global_lock:
+            if _global_operas_registry is registry:
+                _global_operas_registry = None
+            _bootstrap_owner = None
+            _bootstrap_condition.notify_all()
+        raise
+    with _global_lock:
+        _bootstrap_owner = None
+        _bootstrap_condition.notify_all()
+    return registry
 
 
 def is_global_operas_registry(registry: Any) -> bool:

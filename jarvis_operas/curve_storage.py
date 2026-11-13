@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import json
 import os
-import pickle
 from pathlib import Path
 from typing import Any, Mapping
 
+from .home import migrate_legacy_operas_state
 from .io_utils import atomic_write_bytes
 
 _CACHE_ROOT_ENV = "JARVIS_OPERAS_CURVE_CACHE_ROOT"
 _INDEX_PATH_ENV = "JARVIS_OPERAS_CURVE_INDEX"
 _INDEX_FILENAME = "index.json"
-_INDEX_VERSION = 1
-_PICKLE_PROTOCOL = 5
+_INDEX_VERSION = 2
+_ARTIFACT_FORMAT = "npz-v1"
 
 
 def get_curve_cache_root(cache_root: str | None = None) -> Path:
@@ -21,7 +21,7 @@ def get_curve_cache_root(cache_root: str | None = None) -> Path:
     env_value = os.getenv(_CACHE_ROOT_ENV)
     if env_value:
         return Path(env_value).expanduser().resolve()
-    return (Path.home() / ".jarvis-operas" / "curve-cache").resolve()
+    return migrate_legacy_operas_state() / "curve-cache"
 
 
 def get_curve_index_path(
@@ -49,11 +49,6 @@ def _relative_or_absolute(path: Path, base: Path) -> str:
         return str(path.resolve().relative_to(base.resolve()))
     except ValueError:
         return str(path.resolve())
-
-
-def _write_pickle(path: Path, value: Any) -> None:
-    payload = pickle.dumps(value, protocol=_PICKLE_PROTOCOL)
-    atomic_write_bytes(path, payload, fsync=True, temp_prefix=f"{path.name}.")
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:

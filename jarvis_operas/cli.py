@@ -1221,7 +1221,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser_init.add_argument(
         "--cache-root",
         default=None,
-        help="Directory for generated pickle cache and index.json.",
+        help="Directory for generated curve artifacts and index.json.",
     )
     parser_init.add_argument(
         "--index-path",

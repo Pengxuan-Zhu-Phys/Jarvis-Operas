@@ -48,7 +48,7 @@ jopera call pdg.mZ --output-units '{"":"MeV"}' --json
 jopera list --namespace math --log-mode info
 jopera call math.add --kwargs '{"a": 1, "b": 2}' --log-mode debug
 jopera init
-jopera init --manifest ./manifest.json --cache-root ~/.jarvis-operas/curve-cache
+jopera init --manifest ./manifest.json --cache-root ~/.jarvis/operas/curve-cache
 jopera interp list
 jopera interp validate
 jopera --help-advanced
@@ -129,9 +129,17 @@ LZSI2024(30.0)     # DM-nucleon curve, x in GeV, result in cm^2
 `mZ()` is a zero-argument call because PDG constants are registered operators.
 DM-nucleon curves live in `dmddxn` and DM-electron curves live in `dmddxe`.
 Every name returned by `registry.list()` can be imported this way, including a
-user operator after it is loaded into the global registry. Calling the imported
-object uses `registry.call`, so canonical unit handling stays in effect. Pass
-`backend="polars"` to select the Polars backend.
+user operator after it is loaded into the global registry. A persisted operator
+file can use the same import at module level. Importing `joperas` publishes
+the registry first, and the namespace import only reads that registry.
+Startup registers built-in operators and curves before it executes the file.
+The imported object is the
+NumPy implementation. When the operator declares a unit contract, the call
+normalizes inputs to canonical units. A name that is already bound keeps that
+function; import it again after a registry replacement to see the new one.
+`registry.call(..., backend="polars")` remains the Polars path. An operator
+parameter that is itself named `backend` (for example a HiggsTools backend
+object) is passed through on both the imported function and `registry.call`.
 
 Supported namespace convention:
 
@@ -219,14 +227,17 @@ registry = get_global_operas_registry()  # auto-loads persisted sources
 
 Persistence store location:
 
-- Default sources registry: `~/.jarvis-operas/sources.json`
-- Default override rules: `~/.jarvis-operas/overrides.json`
+- Jarvis home is `~/.jarvis` (`JARVIS_HOME`). Operas state lives in `operas/`
+  (`JARVIS_OPERAS_HOME`). A previous `~/.jarvis-operas/` directory is moved on
+  first use; files already in the new directory stay where they are.
+- Default sources registry: `~/.jarvis/operas/sources.json`
+- Default override rules: `~/.jarvis/operas/overrides.json`
 - Legacy base env (still supported): `JARVIS_OPERAS_PERSIST_FILE=/custom/path/persist_store.json`
   - maps to sibling files `sources.json` and `overrides.json`
 - Optional explicit envs:
   - `JARVIS_OPERAS_SOURCES_FILE=/custom/path/sources.json`
   - `JARVIS_OPERAS_OVERRIDES_FILE=/custom/path/overrides.json`
-- Managed user source snapshots: `~/.jarvis-operas/user_sources/`
+- Managed user source snapshots: `~/.jarvis/operas/user_sources/`
 - Override snapshot dir: `JARVIS_OPERAS_USER_SOURCE_DIR=/custom/path/user_sources`
 - Legacy single-file `user_ops.json` is still readable for backward compatibility
 
@@ -315,7 +326,7 @@ Use this flow when you have many 1D interpolation curves and want runtime speed:
    - optional: `jopera init --namespaces dmddxn,interp1` for partial namespace processing
    - inspect manifests with `jopera interp list` and `jopera interp validate`
 3. Runtime auto-registration: `get_global_operas_registry()` initializes the bundled cache and registers hot curves in their resolved namespaces, such as `dmddxn.LZSI2024` and `dmddxe.CDEXLM2022`
-4. After initialization, cached curve loading uses `index.json` + `*.pkl`; evaluation reuses the loaded callable
+4. After initialization, cached curve loading uses `index.json` plus numeric `.npz` artifacts. Loading rebuilds the interpolator and does not execute pickle. The default cache directory is `~/.jarvis/operas/curve-cache` (`JARVIS_HOME` or `JARVIS_OPERAS_HOME` overrides the parent). An existing `~/.jarvis-operas/` tree is moved once.
 
 Namespace rule for registered interpolation operators:
 

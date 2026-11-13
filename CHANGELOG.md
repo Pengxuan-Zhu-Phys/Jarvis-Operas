@@ -5,6 +5,37 @@ are available in [Jarvis-Books](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Book
 
 ## Unreleased
 
+### Fixed
+
+- Import `joperas.<namespace>` from a persisted operator script without
+  deadlocking startup. Importing `joperas` publishes the registry before any
+  namespace module loads, and `from joperas.<namespace> import <name>` only
+  reads that published registry. It does not start or wait for bootstrap
+  while the import lock is held. Built-in operators and interpolation curves
+  are registered before persisted scripts run, so module-level imports such
+  as `from joperas.math import add` and `from joperas.dmddxn import LZSI2024`
+  resolve during load.
+- Pass an operator argument named `backend` through `registry.call` when its
+  value is not the dispatch name `numpy` or `polars`. HiggsTools helpers can
+  be called with `backend=<HiggsTools backend object>`.
+- Reuse the default unit plan for ordinary NumPy calls instead of validating
+  the contract and inspecting the signature on every call.
+
+### Changed
+
+- Store Jarvis-Operas state in `~/.jarvis/operas/` (`JARVIS_HOME` selects the
+  Jarvis directory, `JARVIS_OPERAS_HOME` selects the operas directory). The
+  curve cache, source list, override list, user-source snapshots and legacy
+  `user_ops.json` move out of `~/.jarvis-operas/` on first use. Files already
+  present in the new directory are left in place.
+- Store compiled curves as numeric `.npz` artifacts referenced by `index.json`.
+  Loading rebuilds `Curve1DInterpolator` and does not execute pickle. An older
+  pickle entry is rebuilt by `jopera init` and then removed.
+- Imported `joperas` names are the NumPy implementation, with canonical unit
+  normalization applied when the operator declares a unit contract. A name
+  already bound in the caller keeps that function object. Polars dispatch
+  stays on `registry.call`. Namespace attributes are read-only.
+
 ### Added
 
 - Import any registered operator in a Python script. The namespace and function

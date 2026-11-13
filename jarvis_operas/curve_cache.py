@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
-import pickle
 import re
 from datetime import datetime, timezone
 from importlib import resources
@@ -22,16 +22,16 @@ from .curve_manifest import (
     _resolve_source_path,
 )
 from .curve_storage import (
+    _ARTIFACT_FORMAT,
     _INDEX_VERSION,
-    _PICKLE_PROTOCOL,
     _read_index,
     _read_json_object,
     _relative_or_absolute,
     _resolve_index_ref,
     _write_json,
-    _write_pickle,
     get_curve_index_path,
 )
+from .io_utils import atomic_write_bytes
 from .logging import get_logger
 
 
@@ -119,29 +119,20 @@ def init_curve_cache(
         )
 
         if reuse_existing and isinstance(old_entry, Mapping):
-            pickle_ref = str(old_entry["pickle"])
+            artifact_ref = str(old_entry["artifact"])
             cached.append(curve_id)
         else:
             safe_name = _safe_curve_filename(curve_id)
-            pickle_ref = f"curves/{safe_name}-{content_hash[:12]}.pkl"
-            pickle_path = resolved_index.parent / pickle_ref
-            curve_callable = Curve1DInterpolator(
-                curve_id=curve_id,
-                x_values=x_values,
-                y_values=y_values,
-                kind=spec["kind"],
-                log_x=spec["log_x"],
-                log_y=spec["log_y"],
-                extrapolation=spec["extrapolation"],
-                metadata=spec["metadata"],
-            )
-            _write_pickle(pickle_path, curve_callable)
+            artifact_ref = f"curves/{safe_name}-{content_hash[:12]}.npz"
+            artifact_path = resolved_index.parent / artifact_ref
+            _write_curve_artifact(artifact_path, x_values, y_values)
             compiled.append(curve_id)
 
         entries[curve_id] = {
             "curve_id": curve_id,
             "source": _relative_or_absolute(source_path, resolved_index.parent),
-            "pickle": pickle_ref,
+            "format": _ARTIFACT_FORMAT,
+            "artifact": artifact_ref,
             "hash": content_hash,
             "namespace": spec["namespace"],
             "hot": spec["hot"],
@@ -160,10 +151,11 @@ def init_curve_cache(
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "manifest_path": str(resolved_manifest),
         "source_root": str(resolved_source_root),
-        "pickle_protocol": _PICKLE_PROTOCOL,
+        "artifact_format": _ARTIFACT_FORMAT,
         "curves": entries,
     }
     _write_json(resolved_index, index_payload)
+    _remove_unreferenced_artifacts(resolved_index.parent / "curves", entries)
 
     local_logger.info(
         "initialized curve cache from {} (compiled={}, cached={}, total={})",
@@ -215,19 +207,29 @@ def load_hot_curve_function_table(
         if not include_cold and not is_hot:
             continue
 
-        pickle_ref = entry.get("pickle")
-        if not isinstance(pickle_ref, str) or not pickle_ref.strip():
-            continue
-        pickle_path = _resolve_index_ref(str(pickle_ref), resolved_index.parent)
-        if not pickle_path.exists():
-            raise FileNotFoundError(
-                f"missing curve pickle for '{curve_id}': {pickle_path}"
+        artifact_ref = entry.get("artifact")
+        if entry.get("format") != _ARTIFACT_FORMAT or not isinstance(artifact_ref, str) or not artifact_ref.strip():
+            raise ValueError(
+                f"curve cache entry '{curve_id}' uses a retired pickle format; "
+                "run `jopera init` to rebuild it"
             )
-
-        with pickle_path.open("rb") as fp:
-            curve_fn = pickle.load(fp)
-        if not callable(curve_fn):
-            raise TypeError(f"curve '{curve_id}' is not callable after load")
+        artifact_path = _resolve_index_ref(artifact_ref, resolved_index.parent)
+        if not artifact_path.exists():
+            raise FileNotFoundError(
+                f"missing curve artifact for '{curve_id}': {artifact_path}"
+            )
+        x_values, y_values = _read_curve_artifact(artifact_path)
+        metadata = entry.get("metadata")
+        curve_fn = Curve1DInterpolator(
+            curve_id=str(entry.get("curve_id") or curve_id),
+            x_values=x_values,
+            y_values=y_values,
+            kind=str(entry.get("kind", "cubic")),
+            log_x=bool(entry.get("logX", False)),
+            log_y=bool(entry.get("logY", False)),
+            extrapolation=str(entry.get("extrapolation", "extrapolate")),
+            metadata=dict(metadata) if isinstance(metadata, Mapping) else {},
+        )
         function_table[str(curve_id)] = curve_fn
 
     local_logger.info(
@@ -321,8 +323,44 @@ def _can_reuse_pickle(
         return False
     if str(old_entry.get("hash", "")) != expected_hash:
         return False
-    old_pickle = old_entry.get("pickle")
-    if not isinstance(old_pickle, str) or not old_pickle.strip():
+    if old_entry.get("format") != _ARTIFACT_FORMAT:
         return False
-    path = _resolve_index_ref(old_pickle, index_parent)
-    return path.exists() and path.is_file()
+    artifact = old_entry.get("artifact")
+    if not isinstance(artifact, str) or not artifact.strip():
+        return False
+    path = _resolve_index_ref(artifact, index_parent)
+    return path.exists() and path.is_file() and path.suffix == ".npz"
+
+
+def _write_curve_artifact(path: Path, x_values: np.ndarray, y_values: np.ndarray) -> None:
+    buffer = io.BytesIO()
+    np.savez(
+        buffer,
+        x=np.asarray(x_values, dtype=float),
+        y=np.asarray(y_values, dtype=float),
+    )
+    atomic_write_bytes(path, buffer.getvalue(), fsync=True, temp_prefix=f"{path.name}.")
+
+
+def _read_curve_artifact(path: Path) -> tuple[np.ndarray, np.ndarray]:
+    with np.load(path, allow_pickle=False) as payload:
+        if "x" not in payload.files or "y" not in payload.files:
+            raise ValueError(f"curve artifact '{path}' must contain x and y arrays")
+        return np.asarray(payload["x"], dtype=float), np.asarray(payload["y"], dtype=float)
+
+
+def _remove_unreferenced_artifacts(curves_dir: Path, entries: Mapping[str, Mapping[str, Any]]) -> None:
+    if not curves_dir.is_dir():
+        return
+    referenced = set()
+    for entry in entries.values():
+        artifact = entry.get("artifact")
+        if isinstance(artifact, str) and artifact.strip():
+            referenced.add(Path(artifact).name)
+    for child in curves_dir.iterdir():
+        if not child.is_file():
+            continue
+        if child.suffix not in {".npz", ".pkl"}:
+            continue
+        if child.name not in referenced:
+            child.unlink()
