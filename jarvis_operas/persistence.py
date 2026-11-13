@@ -574,7 +574,7 @@ def load_persisted_user_ops(
         selected_path: str | None = None
         for candidate in candidate_paths:
             candidate_path = Path(candidate).expanduser()
-            if candidate_path.exists() and candidate_path.is_file():
+            if candidate_path.is_file():
                 selected_path = str(candidate_path)
                 break
 

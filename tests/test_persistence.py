@@ -183,6 +183,134 @@ def test_persistence_splits_sources_and_overrides_files(tmp_path, monkeypatch) -
     assert "entries" not in overrides_payload
 
 
+def test_missing_old_snapshot_path_is_not_recovered_from_the_current_store(tmp_path, monkeypatch) -> None:
+    for name in (
+        "JARVIS_OPERAS_SOURCES_FILE",
+        "JARVIS_OPERAS_OVERRIDES_FILE",
+        "JARVIS_OPERAS_USER_SOURCE_DIR",
+        "JARVIS_OPERAS_PERSIST_FILE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    from jarvis_operas.core.registry import OperasRegistry
+    from jarvis_operas.home import operas_home
+    from jarvis_operas.persistence import get_user_source_store_dir, load_persisted_user_ops
+
+    snapshot_name = "moved_ops-0123456789abcdef.py"
+    source = tmp_path / "project" / "moved_ops.py"
+    source.parent.mkdir()
+    source.write_text(
+        textwrap.dedent(
+            """
+            def square(x):
+                return x + 1
+
+            __JARVIS_OPERAS__ = {"square": square}
+            """
+        ),
+        encoding="utf-8",
+    )
+    store = get_user_source_store_dir()
+    store.mkdir(parents=True)
+    (store / snapshot_name).write_text(
+        textwrap.dedent(
+            """
+            def square(x):
+                return x * x
+
+            __JARVIS_OPERAS__ = {"square": square}
+            """
+        ),
+        encoding="utf-8",
+    )
+    stale = tmp_path / "old-home" / "user_sources" / snapshot_name
+    (operas_home() / "sources.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "entries": [
+                    {
+                        "path": str(source),
+                        "namespace": "moved_ops",
+                        "load_path": str(stale),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    registry = OperasRegistry()
+    loaded = load_persisted_user_ops(registry, refresh_sympy=False)
+
+    assert loaded == ["moved_ops.square"]
+    assert registry.call("moved_ops.square", x=4) == 5
+
+
+def test_missing_unmanaged_path_does_not_reuse_same_snapshot_name(tmp_path, monkeypatch) -> None:
+    for name in (
+        "JARVIS_OPERAS_SOURCES_FILE",
+        "JARVIS_OPERAS_OVERRIDES_FILE",
+        "JARVIS_OPERAS_USER_SOURCE_DIR",
+        "JARVIS_OPERAS_PERSIST_FILE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    from jarvis_operas.core.registry import OperasRegistry
+    from jarvis_operas.home import operas_home
+    from jarvis_operas.persistence import get_user_source_store_dir, load_persisted_user_ops
+
+    snapshot_name = "moved_ops-0123456789abcdef.py"
+    source = tmp_path / "project" / "moved_ops.py"
+    source.parent.mkdir()
+    source.write_text(
+        textwrap.dedent(
+            """
+            def square(x):
+                return x + 1
+
+            __JARVIS_OPERAS__ = {"square": square}
+            """
+        ),
+        encoding="utf-8",
+    )
+    store = get_user_source_store_dir()
+    store.mkdir(parents=True)
+    (store / snapshot_name).write_text(
+        textwrap.dedent(
+            """
+            def square(x):
+                return x * x
+
+            __JARVIS_OPERAS__ = {"square": square}
+            """
+        ),
+        encoding="utf-8",
+    )
+    stale = tmp_path / "old-home" / "notes" / snapshot_name
+    (operas_home() / "sources.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "entries": [
+                    {
+                        "path": str(source),
+                        "namespace": "moved_ops",
+                        "load_path": str(stale),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    registry = OperasRegistry()
+    loaded = load_persisted_user_ops(registry, refresh_sympy=False)
+
+    assert loaded == ["moved_ops.square"]
+    assert registry.call("moved_ops.square", x=4) == 5
+
+
 def test_persistence_can_read_legacy_combined_store(tmp_path, monkeypatch) -> None:
     op_file = tmp_path / "legacy_ops.py"
     op_file.write_text(

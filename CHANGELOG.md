@@ -3,6 +3,14 @@
 Release history of `Jarvis-Operas` (CLI `jopera`). User guides and API reference
 are available in [Jarvis-Books](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Books/blob/main/Docs/Jarvis-Operas/README.md).
 
+## Unreleased
+
+### Fixed
+
+- Load a persisted operator from its recorded snapshot, then from the original
+  script. A missing snapshot path is not replaced by another file of the same
+  name in `user_sources/`. `~/.jarvis-operas/` is not read.
+
 ## 1.6.0 — 2026-11-14
 ### Fixed
 
