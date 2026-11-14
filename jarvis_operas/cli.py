@@ -110,7 +110,7 @@ _HELP_METAVARS = {
 
 
 class _MetavarHighlighter(RegexHighlighter):
-    """Dim ``[ | ] < >`` in metavars when this Typer build has no highlighter."""
+    """Dim ``[ | ] < >`` when this Typer build has no metavar highlighter."""
 
     highlights = [
         r"^(?P<metavar_sep>(\[|<))",
@@ -119,7 +119,46 @@ class _MetavarHighlighter(RegexHighlighter):
     ]
 
 
-_metavar_highlighter = getattr(typer.rich_utils, "metavar_highlighter", None) or _MetavarHighlighter()
+def _typer_rich_value(name: str, *aliases: str, default: Any = None) -> Any:
+    """Return a Typer rich helper, including names renamed in Typer 0.29."""
+
+    for candidate in (name, *aliases):
+        if hasattr(typer.rich_utils, candidate):
+            return getattr(typer.rich_utils, candidate)
+    return default
+
+
+def _metavar_highlighter() -> RegexHighlighter:
+    """Highlight metavar brackets. Typer 0.29 names this highlighter ``types``."""
+
+    highlighter = _typer_rich_value("metavar_highlighter", "types_highlighter")
+    if highlighter is None:
+        return _MetavarHighlighter()
+    return highlighter
+
+
+def _help_theme() -> Theme:
+    """Color metavars on Typer 0.25 (``metavar``) and Typer 0.29 (``types``)."""
+
+    metavar = _typer_rich_value("STYLE_METAVAR", "STYLE_TYPES", default="bold yellow")
+    separator = _typer_rich_value(
+        "STYLE_METAVAR_SEPARATOR",
+        "STYLE_TYPES_SEPARATOR",
+        default="dim",
+    )
+    return Theme(
+        {
+            "option": typer.rich_utils.STYLE_OPTION,
+            "switch": typer.rich_utils.STYLE_SWITCH,
+            "negative_option": typer.rich_utils.STYLE_NEGATIVE_OPTION,
+            "negative_switch": typer.rich_utils.STYLE_NEGATIVE_SWITCH,
+            "metavar": metavar,
+            "metavar_sep": separator,
+            "types": metavar,
+            "types_sep": separator,
+            "usage": typer.rich_utils.STYLE_USAGE,
+        }
+    )
 
 
 def _help_console(output: io.TextIOBase) -> Console:
@@ -131,17 +170,7 @@ def _help_console(output: io.TextIOBase) -> Console:
         force_terminal=sys.stdout.isatty(),
         color_system="auto",
         highlighter=typer.rich_utils.highlighter,
-        theme=Theme(
-            {
-                "option": typer.rich_utils.STYLE_OPTION,
-                "switch": typer.rich_utils.STYLE_SWITCH,
-                "negative_option": typer.rich_utils.STYLE_NEGATIVE_OPTION,
-                "negative_switch": typer.rich_utils.STYLE_NEGATIVE_SWITCH,
-                "metavar": typer.rich_utils.STYLE_METAVAR,
-                "metavar_sep": typer.rich_utils.STYLE_METAVAR_SEPARATOR,
-                "usage": typer.rich_utils.STYLE_USAGE,
-            }
-        ),
+        theme=_help_theme(),
     )
 
 
@@ -150,7 +179,7 @@ def _fixed_option_label(param: click.Parameter, ctx: click.Context) -> tuple[Tex
 
     if isinstance(param, click.Argument):
         metavar = getattr(param, "metavar", None) or param.make_metavar(ctx)
-        return typer.rich_utils.highlighter(param.name or ""), _metavar_highlighter(metavar)
+        return typer.rich_utils.highlighter(param.name or ""), _metavar_highlighter()(metavar)
     longs = [item for item in param.opts if item.startswith("--")]
     shorts = [item for item in param.opts if not item.startswith("--")]
     label = ",".join(longs or shorts)

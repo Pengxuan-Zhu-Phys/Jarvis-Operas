@@ -250,6 +250,36 @@ def test_cli_help_uses_jarvis_palette_on_a_terminal(monkeypatch) -> None:
     assert "38;2;155;125;204" not in help_text
 
 
+def test_cli_help_palette_uses_typer_029_type_styles(monkeypatch) -> None:
+    from rich.highlighter import RegexHighlighter
+
+    rich_utils = cli_mod.typer.rich_utils
+    monkeypatch.delattr(rich_utils, "STYLE_METAVAR", raising=False)
+    monkeypatch.delattr(rich_utils, "STYLE_METAVAR_SEPARATOR", raising=False)
+    monkeypatch.delattr(rich_utils, "metavar_highlighter", raising=False)
+    monkeypatch.setattr(rich_utils, "STYLE_TYPES", "bold yellow", raising=False)
+    monkeypatch.setattr(rich_utils, "STYLE_TYPES_SEPARATOR", "dim", raising=False)
+
+    class _TypesOptionHighlighter(RegexHighlighter):
+        highlights = [
+            r"(^|\W)(?P<switch>\-\w+)(?![a-zA-Z0-9])",
+            r"(^|\W)(?P<option>\-\-[\w\-]+)(?![a-zA-Z0-9])",
+            r"(?P<types>\<[^\>]+\>)",
+            r"(?P<usage>Usage: )",
+        ]
+
+    monkeypatch.setattr(rich_utils, "highlighter", _TypesOptionHighlighter(), raising=False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setenv("COLORTERM", "truecolor")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    help_text = cli_mod.build_parser().format_help()
+
+    assert "\x1b[1;36m" in help_text
+    assert "\x1b[1;32m" in help_text
+    assert "\x1b[1;33m" in help_text
+
+
 def test_cli_help_advanced_describes_npz_artifacts() -> None:
     result = _run_cli("--help-advanced")
 

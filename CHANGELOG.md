@@ -7,6 +7,8 @@ are available in [Jarvis-Books](https://github.com/Pengxuan-Zhu-Phys/Jarvis-Book
 
 ### Fixed
 
+- Render `jopera -h` on Typer 0.29. That release renamed metavar styles and
+  highlighters from `metavar` to `types`. Help still uses yellow metavars.
 - Load a persisted operator from its recorded snapshot, then from the original
   script. A missing snapshot path is not replaced by another file of the same
   name in `user_sources/`. `~/.jarvis-operas/` is not read.
